@@ -17,7 +17,8 @@ const Header = ({ onMenuClick }: HeaderProps) => {
   useEffect(() => {
     const loadUser = () => {
       const isLoggedIn = localStorage.getItem('huquq_user_logged_in') === 'true';
-      setIsAdmin(localStorage.getItem('huquq_admin_authed') === 'true');
+      const adminAuthed = localStorage.getItem('huquq_admin_authed') === 'true';
+      setIsAdmin(adminAuthed);
       if (isLoggedIn) {
         const saved = localStorage.getItem('huquq_user_profile');
         if (saved) {
@@ -28,8 +29,8 @@ const Header = ({ onMenuClick }: HeaderProps) => {
             console.error(e);
           }
         }
-        const avatar = localStorage.getItem('huquq_user_avatar');
-        setAvatarUrl(avatar);
+        const avatarKey = adminAuthed ? 'huquq_admin_avatar' : 'huquq_user_avatar';
+        setAvatarUrl(localStorage.getItem(avatarKey));
       } else {
         setUserName('');
         setAvatarUrl(null);

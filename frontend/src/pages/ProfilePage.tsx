@@ -26,9 +26,14 @@ const ProfilePage = () => {
     return localStorage.getItem('huquq_user_logged_in') === 'true';
   });
 
+  const avatarKey = () =>
+    localStorage.getItem('huquq_admin_authed') === 'true'
+      ? 'huquq_admin_avatar'
+      : 'huquq_user_avatar';
+
   const [isEditing, setIsEditing] = useState(false);
   const [avatarUrl, setAvatarUrl] = useState<string | null>(() => {
-    return localStorage.getItem('huquq_user_avatar') || null;
+    return localStorage.getItem(avatarKey()) || null;
   });
   
   const [showAvatarSelector, setShowAvatarSelector] = useState(false);
@@ -75,6 +80,8 @@ const ProfilePage = () => {
       if (logged !== isLoggedIn) {
         setIsLoggedIn(logged);
       }
+      // Reload avatar matching the current account (user/admin have separate keys)
+      setAvatarUrl(localStorage.getItem(avatarKey()) || null);
     };
     window.addEventListener('huquq-auth-change', checkAuth);
     window.addEventListener('storage', checkAuth);
@@ -116,14 +123,16 @@ const ProfilePage = () => {
     if (file) {
       const imageUrl = URL.createObjectURL(file);
       setAvatarUrl(imageUrl);
-      localStorage.setItem('huquq_user_avatar', imageUrl);
+      localStorage.setItem(avatarKey(), imageUrl);
+      window.dispatchEvent(new Event('huquq-auth-change'));
       setShowAvatarSelector(false);
     }
   };
 
   const selectDemoAvatar = (url: string) => {
     setAvatarUrl(url);
-    localStorage.setItem('huquq_user_avatar', url);
+    localStorage.setItem(avatarKey(), url);
+    window.dispatchEvent(new Event('huquq-auth-change'));
     setShowAvatarSelector(false);
   };
 

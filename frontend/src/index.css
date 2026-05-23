@@ -2347,6 +2347,10 @@ html[data-theme="dark"] .sidebar-submenu .submenu-item.active {
 }
 
 /* AI assistant — tabs, header, chat, messages, keys, modal, limits */
+html[data-theme="dark"] .ai-assistant-page {
+  background: linear-gradient(160deg, #0f172a 0%, #1e293b 50%, #0f172a 100%) !important;
+  border-color: rgba(51, 65, 85, 0.5) !important;
+}
 html[data-theme="dark"] .ai-tabs-bar { background: rgba(15, 23, 42, 0.6) !important; border-color: rgba(51, 65, 85, 0.5) !important; }
 html[data-theme="dark"] .ai-tab { color: #94a3b8 !important; background: transparent !important; }
 html[data-theme="dark"] .ai-tab.active { background: #1e293b !important; color: #a5b4fc !important; }
@@ -2397,7 +2401,14 @@ html[data-theme="dark"] .ai-modal-field input,
 html[data-theme="dark"] .ai-modal-field select { background: #0f172a !important; color: #f1f5f9 !important; border-color: rgba(71, 85, 105, 0.7) !important; }
 html[data-theme="dark"] .ai-modal-cancel { background: #334155 !important; color: #f1f5f9 !important; border-color: rgba(71, 85, 105, 0.5) !important; }
 
-html[data-theme="dark"] .ai-limit-card { background: #1e293b !important; border-color: rgba(51, 65, 85, 0.6) !important; color: #f1f5f9 !important; }
+html[data-theme="dark"] .ai-limit-card {
+  background: #1e293b !important;
+  border-color: rgba(51, 65, 85, 0.6) !important;
+  color: #f1f5f9 !important;
+}
+html[data-theme="dark"] .ai-limit-card:hover { box-shadow: 0 6px 20px rgba(0,0,0,0.4) !important; }
+html[data-theme="dark"] .ai-limit-icon { background-color: rgba(99, 102, 241, 0.18) !important; }
+html[data-theme="dark"] .ai-limit-value { color: #f1f5f9 !important; }
 html[data-theme="dark"] .ai-limit-label { color: #94a3b8 !important; }
 
 /* Cards & generic page surfaces */

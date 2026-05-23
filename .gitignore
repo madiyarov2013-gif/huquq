@@ -1,6 +1,12 @@
 node_modules/
 .env
 .env.local
+
+# Backend local data (contains API keys, subscriptions, etc.)
+backend/data/
+
+# Claude Code session
+.claude/
 .env.development.local
 .env.test.local
 .env.production.local

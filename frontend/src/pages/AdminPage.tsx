@@ -1,6 +1,6 @@
 import React, { useState, useEffect } from 'react';
 import {
-  ShieldCheck, Lock, LayoutDashboard, BookOpen, ClipboardList,
+  ShieldCheck, Lock, LayoutDashboard, BookOpen,
   Plus, Edit, Trash2, Save, X, PlusCircle, HelpCircle,
   BookOpenCheck, BookMarked, Bot, KeyRound, Power,
   Wallet, Users, TrendingUp, Calendar
@@ -259,7 +259,7 @@ const AdminPage: React.FC = () => {
         showNotification(data.error || "Saqlash amalga oshmadi", 'error');
       }
     } catch (err) {
-      showNotification("Server bilan ulanishda xatolik", 'error');
+      showNotification("Backend ishlamayapti. Backend papkasida 'npm start' bilan ishga tushiring (port 5000).", 'error');
     }
   };
 
@@ -285,7 +285,7 @@ const AdminPage: React.FC = () => {
         showNotification(data.error || "Kalit qo'shilmadi", 'error');
       }
     } catch (err) {
-      showNotification("Server bilan ulanishda xatolik", 'error');
+      showNotification("Backend ishlamayapti. Backend papkasida 'npm start' bilan ishga tushiring (port 5000).", 'error');
     }
   };
 
@@ -304,7 +304,7 @@ const AdminPage: React.FC = () => {
         showNotification(data.error || "Yangilanmadi", 'error');
       }
     } catch (err) {
-      showNotification("Server bilan ulanishda xatolik", 'error');
+      showNotification("Backend ishlamayapti. Backend papkasida 'npm start' bilan ishga tushiring (port 5000).", 'error');
     }
   };
 
@@ -323,7 +323,7 @@ const AdminPage: React.FC = () => {
         showNotification(data.error || "Yangilanmadi", 'error');
       }
     } catch (err) {
-      showNotification("Server bilan ulanishda xatolik", 'error');
+      showNotification("Backend ishlamayapti. Backend papkasida 'npm start' bilan ishga tushiring (port 5000).", 'error');
     }
   };
 
@@ -361,7 +361,7 @@ const AdminPage: React.FC = () => {
         showNotification(data.error || "O'chirilmadi", 'error');
       }
     } catch (err) {
-      showNotification("Server bilan ulanishda xatolik", 'error');
+      showNotification("Backend ishlamayapti. Backend papkasida 'npm start' bilan ishga tushiring (port 5000).", 'error');
     }
   };
 
@@ -378,7 +378,45 @@ const AdminPage: React.FC = () => {
         showNotification(data.error || "O'chirilmadi", 'error');
       }
     } catch (err) {
-      showNotification("Server bilan ulanishda xatolik", 'error');
+      showNotification("Backend ishlamayapti. Backend papkasida 'npm start' bilan ishga tushiring (port 5000).", 'error');
+    }
+  };
+
+  const handleTestAiKey = async (id: string) => {
+    try {
+      showNotification("Kalit tekshirilmoqda...");
+      const res = await fetch(`http://localhost:5000/api/ai/keys/${id}/test`, { method: 'POST' });
+      const data = await res.json();
+      if (data.success) {
+        showNotification(`Kalit ishlayapti — javob: "${(data.reply || '').slice(0, 80)}"`);
+      } else {
+        showNotification(data.error || "Kalit ishlamadi", 'error');
+      }
+    } catch (err) {
+      showNotification("Backend ishlamayapti. Backend papkasida 'npm start' bilan ishga tushiring (port 5000).", 'error');
+    }
+  };
+
+  const handleTestNewKey = async () => {
+    if (!newAiKey.apiKey.trim()) {
+      showNotification("Avval API kalitni kiriting", 'error');
+      return;
+    }
+    try {
+      showNotification("Kalit tekshirilmoqda...");
+      const res = await fetch('http://localhost:5000/api/ai/test', {
+        method: 'POST',
+        headers: { 'Content-Type': 'application/json' },
+        body: JSON.stringify({ apiKey: newAiKey.apiKey, provider: newAiKey.provider })
+      });
+      const data = await res.json();
+      if (data.success) {
+        showNotification(`Kalit to'g'ri — javob: "${(data.reply || '').slice(0, 80)}"`);
+      } else {
+        showNotification(data.error || "Kalit ishlamadi", 'error');
+      }
+    } catch (err) {
+      showNotification("Backend ishlamayapti. Backend papkasida 'npm start' bilan ishga tushiring (port 5000).", 'error');
     }
   };
 
@@ -408,7 +446,8 @@ const AdminPage: React.FC = () => {
     localStorage.removeItem('huquq_admin_authed');
     localStorage.removeItem('huquq_user_logged_in');
     localStorage.removeItem('huquq_user_profile');
-    localStorage.removeItem('huquq_user_avatar');
+    // Do not touch huquq_user_avatar — that's the regular user's avatar.
+    // Admin's avatar is stored under huquq_admin_avatar and persists across sessions.
     window.dispatchEvent(new Event('huquq-auth-change'));
     navigate('/');
   };
@@ -464,7 +503,7 @@ const AdminPage: React.FC = () => {
         showNotification(data.error || 'Amal bajarilmadi', 'error');
       }
     } catch (err) {
-      showNotification('Server bilan ulanishda xatolik', 'error');
+      showNotification("Backend ishlamayapti. Backend papkasida 'npm start' bilan ishga tushiring (port 5000).", 'error');
     }
   };
 
@@ -485,7 +524,7 @@ const AdminPage: React.FC = () => {
         showNotification(data.error || 'O\'chirish amalga oshmadi', 'error');
       }
     } catch (err) {
-      showNotification('Server bilan ulanishda xatolik', 'error');
+      showNotification("Backend ishlamayapti. Backend papkasida 'npm start' bilan ishga tushiring (port 5000).", 'error');
     }
   };
 
@@ -620,7 +659,7 @@ const AdminPage: React.FC = () => {
         showNotification(data.error || 'Amal bajarilmadi', 'error');
       }
     } catch (err) {
-      showNotification('Server bilan ulanishda xatolik', 'error');
+      showNotification("Backend ishlamayapti. Backend papkasida 'npm start' bilan ishga tushiring (port 5000).", 'error');
     }
   };
 
@@ -641,7 +680,7 @@ const AdminPage: React.FC = () => {
         showNotification(data.error || 'O\'chirish amalga oshmadi', 'error');
       }
     } catch (err) {
-      showNotification('Server bilan ulanishda xatolik', 'error');
+      showNotification("Backend ishlamayapti. Backend papkasida 'npm start' bilan ishga tushiring (port 5000).", 'error');
     }
   };
 
@@ -806,17 +845,6 @@ const AdminPage: React.FC = () => {
           <BookOpen size={18} /> Darsliklar
         </button>
         <button
-          onClick={() => { setActiveTab('tests'); setEditingBook(null); setEditingTest(null); }}
-          style={{
-            display: 'flex', alignItems: 'center', gap: '8px', padding: '12px 24px', borderRadius: '10px',
-            backgroundColor: activeTab === 'tests' ? 'var(--primary-light)' : 'transparent',
-            color: activeTab === 'tests' ? 'var(--primary-base)' : 'var(--text-gray)',
-            fontWeight: '600', transition: 'all 0.2s'
-          }}
-        >
-          <ClipboardList size={18} /> Testlar
-        </button>
-        <button
           onClick={() => { setActiveTab('ai'); setEditingBook(null); setEditingTest(null); }}
           style={{
             display: 'flex', alignItems: 'center', gap: '8px', padding: '12px 24px', borderRadius: '10px',
@@ -825,7 +853,7 @@ const AdminPage: React.FC = () => {
             fontWeight: '600', transition: 'all 0.2s'
           }}
         >
-          <Bot size={18} /> AI yordamchi
+          <Bot size={18} /> AI sozlamalari
         </button>
         <button
           onClick={() => { setActiveTab('payments'); setEditingBook(null); setEditingTest(null); fetchSubscriptions(); fetchSubStats(); }}
@@ -1515,6 +1543,13 @@ const AdminPage: React.FC = () => {
                       </div>
                       <div style={{ display: 'flex', gap: '8px' }}>
                         <button
+                          onClick={() => handleTestAiKey(k._id)}
+                          style={{ padding: '8px 14px', border: '1px solid #cbd5e1', borderRadius: '8px', fontSize: '13px', fontWeight: 600, color: '#4f46e5', backgroundColor: '#eef2ff' }}
+                          title="Kalitni tekshirish"
+                        >
+                          Test
+                        </button>
+                        <button
                           onClick={() => handleToggleAiKey(k)}
                           style={{ padding: '8px 14px', border: '1px solid #cbd5e1', borderRadius: '8px', fontSize: '13px', fontWeight: '600', color: k.active ? '#b91c1c' : '#15803d' }}
                         >
@@ -1631,6 +1666,12 @@ const AdminPage: React.FC = () => {
                     style={{ flex: 1, padding: '12px', border: '1px solid #cbd5e1', borderRadius: '8px', color: '#475569', fontWeight: '600', fontSize: '14px' }}
                   >
                     Bekor qilish
+                  </button>
+                  <button
+                    onClick={handleTestNewKey}
+                    style={{ flex: 1, padding: '12px', backgroundColor: '#eef2ff', color: '#4f46e5', border: '1px solid #c7d2fe', borderRadius: '8px', fontWeight: 600, fontSize: '14px' }}
+                  >
+                    Test
                   </button>
                   <button
                     onClick={handleCreateAiKey}

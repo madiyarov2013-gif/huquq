@@ -45,10 +45,10 @@ const Layout = () => {
     };
   }, [isLoggedIn]);
 
-  // Route protection for admins: redirect to /admin if accessing student pages
+  // Route protection for admins: redirect to /admin if accessing student-only pages
   useEffect(() => {
     if (isLoggedIn && isAdmin) {
-      const allowedAdminPaths = ['/admin', '/profile', '/settings'];
+      const allowedAdminPaths = ['/admin', '/profile', '/settings', '/ai-assistant'];
       const currentPath = location.pathname;
       const isAllowed = allowedAdminPaths.some(path => currentPath === path || currentPath.startsWith(path + '/'));
 
@@ -96,7 +96,7 @@ const Layout = () => {
           <Outlet />
         </main>
       </div>
-      {!isAdmin && isPaid && <WalleBot />}
+      {(isAdmin || isPaid) && <WalleBot />}
     </div>
   );
 };

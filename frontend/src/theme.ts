@@ -7,7 +7,7 @@ const EVENT_NAME = 'huquq-theme-change';
 export function getThemeMode(): ThemeMode {
   const v = localStorage.getItem(STORAGE_KEY);
   if (v === 'light' || v === 'dark' || v === 'auto') return v;
-  return 'auto';
+  return 'dark';
 }
 
 export function resolveTheme(mode: ThemeMode): ResolvedTheme {

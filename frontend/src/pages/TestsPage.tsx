@@ -2,7 +2,7 @@ import { useState, useEffect, useMemo } from 'react';
 import {
   ClipboardList,
   Check, ArrowRight, ArrowLeft, RefreshCw, AlertCircle, Timer, CheckCircle2,
-  Filter, Sparkles, GraduationCap, Search, TrendingUp
+  Filter, Sparkles, GraduationCap, TrendingUp
 } from 'lucide-react';
 
 const AVAILABLE_GRADES = [6, 7, 8, 9, 10, 11];
@@ -35,13 +35,44 @@ interface QuizResult {
 // Each quiz pulls exactly 20 questions, drawn from the visible pool.
 const QUIZ_LENGTH = 20;
 
-const shuffle = <T,>(arr: T[]): T[] => {
+// Days since unix epoch (local midnight) — used as the daily window index.
+const daysSinceEpoch = (): number => {
+  const d = new Date();
+  const local = new Date(d.getFullYear(), d.getMonth(), d.getDate());
+  return Math.floor(local.getTime() / (1000 * 60 * 60 * 24));
+};
+
+// Simple mulberry32 PRNG — good enough for daily shuffle, fully deterministic per seed.
+const makeRng = (seed: number) => {
+  let s = seed >>> 0;
+  return () => {
+    s = (s + 0x6D2B79F5) >>> 0;
+    let t = s;
+    t = Math.imul(t ^ (t >>> 15), t | 1);
+    t ^= t + Math.imul(t ^ (t >>> 7), t | 61);
+    return ((t ^ (t >>> 14)) >>> 0) / 4294967296;
+  };
+};
+
+const seededShuffle = <T,>(arr: T[], seed: number): T[] => {
+  const rng = makeRng(seed);
   const a = [...arr];
   for (let i = a.length - 1; i > 0; i--) {
-    const j = Math.floor(Math.random() * (i + 1));
+    const j = Math.floor(rng() * (i + 1));
     [a[i], a[j]] = [a[j], a[i]];
   }
   return a;
+};
+
+// Hash selected grades into a stable salt (so different grade combos rotate differently)
+const gradesSalt = (grades: number[]): number => {
+  return grades.slice().sort((a, b) => a - b).reduce((acc, g) => acc * 31 + g, 7);
+};
+
+const msUntilNextLocalMidnight = (): number => {
+  const now = new Date();
+  const next = new Date(now.getFullYear(), now.getMonth(), now.getDate() + 1, 0, 0, 0, 0);
+  return next.getTime() - now.getTime();
 };
 
 const STATIC_FALLBACK_TESTS: Record<string, Test[]> = {
@@ -369,7 +400,25 @@ Object.entries(EXTRA_BANK).forEach(([grade, questions]) => {
   });
 });
 
+const formatHM = (ms: number): string => {
+  if (ms <= 0) return '0s 0d';
+  const totalMinutes = Math.floor(ms / 60000);
+  const h = Math.floor(totalMinutes / 60);
+  const m = totalMinutes % 60;
+  return `${h} s ${m} d`;
+};
+
 const TestsPage = () => {
+  const [refreshIn, setRefreshIn] = useState<number>(() => msUntilNextLocalMidnight());
+
+  // Tick the "next refresh" label every minute and roll over at midnight
+  useEffect(() => {
+    const id = window.setInterval(() => {
+      setRefreshIn(msUntilNextLocalMidnight());
+    }, 60 * 1000);
+    return () => clearInterval(id);
+  }, []);
+
   const [selectedGrades, setSelectedGrades] = useState<number[]>(() => {
     const saved = localStorage.getItem('huquq_selected_grades');
     if (saved) {
@@ -383,7 +432,6 @@ const TestsPage = () => {
     return [11];
   });
   const [allTests, setAllTests] = useState<Test[]>([]);
-  const [searchQuery, setSearchQuery] = useState('');
   const [loading, setLoading] = useState<boolean>(false);
 
   // Active Quiz State
@@ -430,13 +478,8 @@ const TestsPage = () => {
   }, []);
 
   const visibleTests = useMemo(() => {
-    const q = searchQuery.trim().toLowerCase();
-    return allTests.filter(t => {
-      if (selectedGrades.length > 0 && !selectedGrades.includes(t.grade)) return false;
-      if (q && !t.title.toLowerCase().includes(q)) return false;
-      return true;
-    });
-  }, [allTests, selectedGrades, searchQuery]);
+    return allTests.filter(t => selectedGrades.includes(t.grade));
+  }, [allTests, selectedGrades]);
 
   const toggleGrade = (g: number) => {
     setSelectedGrades(prev =>
@@ -476,10 +519,18 @@ const TestsPage = () => {
   }, [timeLeft, activeTest, quizFinished]);
 
   const handleStartQuiz = (clickedTest: Test) => {
-    // Pool every question from currently visible tests (filtered by selected grades),
-    // shuffle, and pick exactly QUIZ_LENGTH (or all if pool is smaller).
+    // 1) Build the pool of questions for the selected grades.
+    // 2) Stable-shuffle it once per grade selection (consistent ordering across days).
+    // 3) Each day take a rolling window of 20, advancing the start by 20 every 24 h.
+    // This way, today's 20 are disjoint from yesterday's 20 whenever the pool has 40+ questions.
     const pool: Question[] = visibleTests.flatMap(t => t.questions);
-    const sampled = shuffle(pool).slice(0, QUIZ_LENGTH);
+    const ordered = seededShuffle(pool, gradesSalt(selectedGrades));
+    let sampled: Question[] = [];
+    if (ordered.length > 0) {
+      const offset = (daysSinceEpoch() * QUIZ_LENGTH) % ordered.length;
+      const rotated = [...ordered.slice(offset), ...ordered.slice(0, offset)];
+      sampled = rotated.slice(0, Math.min(QUIZ_LENGTH, ordered.length));
+    }
 
     const quiz: Test = {
       title: clickedTest.title,
@@ -1148,6 +1199,13 @@ const TestsPage = () => {
             <TrendingUp size={16} />
             <span style={{ fontSize: '13.5px', fontWeight: 600 }}>{totalQuestions} ta savol</span>
           </div>
+          <div
+            title="Savollar har kuni soat 00:00 da yangilanadi"
+            style={{ display: 'flex', alignItems: 'center', gap: '8px', backgroundColor: 'rgba(251, 191, 36, 0.22)', border: '1px solid rgba(251, 191, 36, 0.4)', padding: '8px 16px', borderRadius: '12px', backdropFilter: 'blur(10px)' }}
+          >
+            <Timer size={16} />
+            <span style={{ fontSize: '13.5px', fontWeight: 600 }}>Yangi savollar: {formatHM(refreshIn)}</span>
+          </div>
         </div>
       </div>
 
@@ -1209,22 +1267,6 @@ const TestsPage = () => {
           })}
         </div>
 
-        {/* Search */}
-        <div style={{ position: 'relative' }}>
-          <Search size={18} style={{ position: 'absolute', left: '14px', top: '50%', transform: 'translateY(-50%)', color: '#94a3b8' }} />
-          <input
-            type="text"
-            value={searchQuery}
-            onChange={e => setSearchQuery(e.target.value)}
-            placeholder="Test sarlavhasi bo'yicha qidirish..."
-            style={{
-              width: '100%', padding: '12px 16px 12px 44px',
-              border: '1px solid #e2e8f0', borderRadius: '12px',
-              fontSize: '14px', outline: 'none', backgroundColor: '#f8fafc',
-              boxSizing: 'border-box'
-            }}
-          />
-        </div>
       </div>
 
       {/* Section title */}
