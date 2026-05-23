@@ -1,5 +1,7 @@
 import React, { useState, useEffect } from 'react';
 import { apiUrl } from '../config';
+import * as aiStore from '../ai-store';
+import { generateGemini, friendlyError } from '../ai-client';
 import {
   ShieldCheck, Lock, LayoutDashboard, BookOpen,
   Plus, Edit, Trash2, Save, X, PlusCircle, HelpCircle,
@@ -214,54 +216,20 @@ const AdminPage: React.FC = () => {
     }
   };
 
-  // ===== AI handlers =====
+  // ===== AI handlers (client-side via localStorage + direct Gemini API) =====
   const fetchAiSettings = async () => {
-    try {
-      const res = await fetch(apiUrl('/api/ai/settings'));
-      const data = await res.json();
-      if (data.success) setAiSettings(data.data);
-    } catch (err) {
-      console.error('AI settings loading failed', err);
-    }
+    setAiSettings(aiStore.getAiSettings());
   };
-
   const fetchAiKeys = async () => {
-    try {
-      const res = await fetch(apiUrl('/api/ai/keys'));
-      const data = await res.json();
-      if (data.success) setAiKeys(data.data);
-    } catch (err) {
-      console.error('AI keys loading failed', err);
-    }
+    setAiKeys(aiStore.getAiKeys() as unknown as AiKey[]);
   };
-
   const fetchAiStats = async () => {
-    try {
-      const res = await fetch(apiUrl('/api/ai/stats'));
-      const data = await res.json();
-      if (data.success) setAiStats(data.data);
-    } catch (err) {
-      console.error('AI stats loading failed', err);
-    }
+    setAiStats(aiStore.getAiStats());
   };
 
   const handleSaveAiSettings = async () => {
-    try {
-      const res = await fetch(apiUrl('/api/ai/settings'), {
-        method: 'PUT',
-        headers: { 'Content-Type': 'application/json' },
-        body: JSON.stringify(aiSettings)
-      });
-      const data = await res.json();
-      if (data.success) {
-        setAiSettings(data.data);
-        showNotification("AI sozlamalari saqlandi");
-      } else {
-        showNotification(data.error || "Saqlash amalga oshmadi", 'error');
-      }
-    } catch (err) {
-      showNotification("Backend ishlamayapti. Backend papkasida 'npm start' bilan ishga tushiring (port 5000).", 'error');
-    }
+    aiStore.setAiSettings(aiSettings as unknown as aiStore.AiSettings);
+    showNotification("AI sozlamalari saqlandi");
   };
 
   const handleCreateAiKey = async () => {
@@ -269,63 +237,29 @@ const AdminPage: React.FC = () => {
       showNotification("Nom va kalitni to'ldiring", 'error');
       return;
     }
-    try {
-      const res = await fetch(apiUrl('/api/ai/keys'), {
-        method: 'POST',
-        headers: { 'Content-Type': 'application/json' },
-        body: JSON.stringify(newAiKey)
-      });
-      const data = await res.json();
-      if (data.success) {
-        setNewAiKey({ name: '', apiKey: '', provider: 'gemini', dailyLimit: 1500 });
-        setShowAddKeyModal(false);
-        fetchAiKeys();
-        fetchAiStats();
-        showNotification("Yangi kalit qo'shildi");
-      } else {
-        showNotification(data.error || "Kalit qo'shilmadi", 'error');
-      }
-    } catch (err) {
-      showNotification("Backend ishlamayapti. Backend papkasida 'npm start' bilan ishga tushiring (port 5000).", 'error');
-    }
+    aiStore.createAiKey({
+      name: newAiKey.name,
+      apiKey: newAiKey.apiKey,
+      provider: newAiKey.provider as 'gemini' | 'openai',
+      dailyLimit: newAiKey.dailyLimit
+    });
+    setNewAiKey({ name: '', apiKey: '', provider: 'gemini', dailyLimit: 1500 });
+    setShowAddKeyModal(false);
+    fetchAiKeys();
+    fetchAiStats();
+    showNotification("Yangi kalit qo'shildi");
   };
 
   const handleToggleAiKey = async (k: AiKey) => {
-    try {
-      const res = await fetch(apiUrl(`/api/ai/keys/${k._id}`), {
-        method: 'PUT',
-        headers: { 'Content-Type': 'application/json' },
-        body: JSON.stringify({ active: !k.active })
-      });
-      const data = await res.json();
-      if (data.success) {
-        fetchAiKeys();
-        fetchAiStats();
-      } else {
-        showNotification(data.error || "Yangilanmadi", 'error');
-      }
-    } catch (err) {
-      showNotification("Backend ishlamayapti. Backend papkasida 'npm start' bilan ishga tushiring (port 5000).", 'error');
-    }
+    aiStore.updateAiKey(k._id, { active: !k.active });
+    fetchAiKeys();
+    fetchAiStats();
   };
 
   const handleUpdateAiKeyLimit = async (id: string, dailyLimit: number) => {
-    try {
-      const res = await fetch(apiUrl(`/api/ai/keys/${id}`), {
-        method: 'PUT',
-        headers: { 'Content-Type': 'application/json' },
-        body: JSON.stringify({ dailyLimit })
-      });
-      const data = await res.json();
-      if (data.success) {
-        fetchAiKeys();
-        fetchAiStats();
-      } else {
-        showNotification(data.error || "Yangilanmadi", 'error');
-      }
-    } catch (err) {
-      showNotification("Backend ishlamayapti. Backend papkasida 'npm start' bilan ishga tushiring (port 5000).", 'error');
-    }
+    aiStore.updateAiKey(id, { dailyLimit });
+    fetchAiKeys();
+    fetchAiStats();
   };
 
   // ===== Subscription handlers =====
@@ -368,33 +302,29 @@ const AdminPage: React.FC = () => {
 
   const handleDeleteAiKey = async (id: string) => {
     if (!window.confirm("Haqiqatan ham ushbu kalitni o'chirmoqchimisiz?")) return;
-    try {
-      const res = await fetch(apiUrl(`/api/ai/keys/${id}`), { method: 'DELETE' });
-      const data = await res.json();
-      if (data.success) {
-        fetchAiKeys();
-        fetchAiStats();
-        showNotification("Kalit o'chirildi");
-      } else {
-        showNotification(data.error || "O'chirilmadi", 'error');
-      }
-    } catch (err) {
-      showNotification("Backend ishlamayapti. Backend papkasida 'npm start' bilan ishga tushiring (port 5000).", 'error');
-    }
+    aiStore.deleteAiKey(id);
+    fetchAiKeys();
+    fetchAiStats();
+    showNotification("Kalit o'chirildi");
   };
 
   const handleTestAiKey = async (id: string) => {
+    const k = aiStore.findAiKeyFull(id);
+    if (!k) {
+      showNotification("Kalit topilmadi", 'error');
+      return;
+    }
+    showNotification("Kalit tekshirilmoqda...");
     try {
-      showNotification("Kalit tekshirilmoqda...");
-      const res = await fetch(apiUrl(`/api/ai/keys/${id}/test`), { method: 'POST' });
-      const data = await res.json();
-      if (data.success) {
-        showNotification(`Kalit ishlayapti — javob: "${(data.reply || '').slice(0, 80)}"`);
-      } else {
-        showNotification(data.error || "Kalit ishlamadi", 'error');
+      const settings = aiStore.getAiSettings();
+      const { reply, model } = await generateGemini(k.apiKey, settings.defaultModel, 'Salom, bu test. Bir so\'z bilan javob ber.');
+      if (model !== settings.defaultModel) {
+        aiStore.setAiSettings({ ...settings, defaultModel: model });
+        setAiSettings(aiStore.getAiSettings());
       }
+      showNotification(`Kalit ishlayapti (${model}) — javob: "${(reply || '').slice(0, 80)}"`);
     } catch (err) {
-      showNotification("Backend ishlamayapti. Backend papkasida 'npm start' bilan ishga tushiring (port 5000).", 'error');
+      showNotification(friendlyError(err), 'error');
     }
   };
 
@@ -403,21 +333,17 @@ const AdminPage: React.FC = () => {
       showNotification("Avval API kalitni kiriting", 'error');
       return;
     }
+    showNotification("Kalit tekshirilmoqda...");
     try {
-      showNotification("Kalit tekshirilmoqda...");
-      const res = await fetch(apiUrl('/api/ai/test'), {
-        method: 'POST',
-        headers: { 'Content-Type': 'application/json' },
-        body: JSON.stringify({ apiKey: newAiKey.apiKey, provider: newAiKey.provider })
-      });
-      const data = await res.json();
-      if (data.success) {
-        showNotification(`Kalit to'g'ri — javob: "${(data.reply || '').slice(0, 80)}"`);
-      } else {
-        showNotification(data.error || "Kalit ishlamadi", 'error');
+      const settings = aiStore.getAiSettings();
+      const { reply, model } = await generateGemini(newAiKey.apiKey.trim(), settings.defaultModel, 'Salom, bu test. Bir so\'z bilan javob ber.');
+      if (model !== settings.defaultModel) {
+        aiStore.setAiSettings({ ...settings, defaultModel: model });
+        setAiSettings(aiStore.getAiSettings());
       }
+      showNotification(`Kalit to'g'ri (${model}) — javob: "${(reply || '').slice(0, 80)}"`);
     } catch (err) {
-      showNotification("Backend ishlamayapti. Backend papkasida 'npm start' bilan ishga tushiring (port 5000).", 'error');
+      showNotification(friendlyError(err), 'error');
     }
   };
 

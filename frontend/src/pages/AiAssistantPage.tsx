@@ -1,5 +1,10 @@
 import React, { useState, useRef, useEffect } from 'react';
-import { apiUrl } from '../config';
+import {
+  getAiSettings, setAiSettings,
+  pickActiveKey, recordKeyUsage, getAiStats
+} from '../ai-store';
+import type { AiStats, AiSettings } from '../ai-store';
+import { generateGemini, friendlyError } from '../ai-client';
 
 interface Message {
   id: number;
@@ -8,28 +13,16 @@ interface Message {
   time: string;
 }
 
-interface AiSettings {
-  systemPrompt: string;
-  greeting: string;
-  enabled: boolean;
-  defaultProvider: string;
-  defaultModel: string;
-}
-
-interface AiStats {
-  keysTotal: number;
-  keysActive: number;
-  usedToday: number;
-  dailyLimit: number;
-}
-
-const formatTime = () => new Date().toLocaleTimeString('uz', { hour: '2-digit', minute: '2-digit' });
+const formatTime = () =>
+  new Date().toLocaleTimeString('uz', { hour: '2-digit', minute: '2-digit' });
 
 const AiAssistantPage: React.FC = () => {
   const [activeTab, setActiveTab] = useState<'chat' | 'limits'>('chat');
 
   const [settings, setSettings] = useState<AiSettings | null>(null);
-  const [stats, setStats] = useState<AiStats>({ keysTotal: 0, keysActive: 0, usedToday: 0, dailyLimit: 0 });
+  const [stats, setStats] = useState<AiStats>({
+    keysTotal: 0, keysActive: 0, usedToday: 0, dailyLimit: 0, date: ''
+  });
 
   const [messages, setMessages] = useState<Message[]>([]);
   const [input, setInput] = useState('');
@@ -37,41 +30,20 @@ const AiAssistantPage: React.FC = () => {
   const messagesEndRef = useRef<HTMLDivElement>(null);
 
   useEffect(() => {
-    fetchSettings();
-    fetchStats();
+    const s = getAiSettings();
+    setSettings(s);
+    setStats(getAiStats());
+    setMessages([{
+      id: 1,
+      text: s.greeting || 'Assalomu alaykum!',
+      sender: 'bot',
+      time: formatTime()
+    }]);
   }, []);
 
   useEffect(() => {
     messagesEndRef.current?.scrollIntoView({ behavior: 'smooth' });
   }, [messages]);
-
-  const fetchSettings = async () => {
-    try {
-      const res = await fetch(apiUrl('/api/ai/settings'));
-      const data = await res.json();
-      if (data.success) {
-        setSettings(data.data);
-        setMessages([{
-          id: 1,
-          text: data.data.greeting || "Assalomu alaykum!",
-          sender: 'bot',
-          time: formatTime()
-        }]);
-      }
-    } catch (err) {
-      console.error('Settings fetch failed', err);
-    }
-  };
-
-  const fetchStats = async () => {
-    try {
-      const res = await fetch(apiUrl('/api/ai/stats'));
-      const data = await res.json();
-      if (data.success) setStats(data.data);
-    } catch (err) {
-      console.error('Stats fetch failed', err);
-    }
-  };
 
   const handleSend = async () => {
     if (!input.trim()) return;
@@ -83,27 +55,56 @@ const AiAssistantPage: React.FC = () => {
     setInput('');
     setIsTyping(true);
 
+    const liveSettings = getAiSettings();
+    if (!liveSettings.enabled) {
+      setMessages(prev => [...prev, {
+        id: Date.now() + 1,
+        text: "AI hozircha o'chirilgan. Administrator yoqishi kerak.",
+        sender: 'bot',
+        time: formatTime()
+      }]);
+      setIsTyping(false);
+      return;
+    }
+
+    const key = pickActiveKey();
+    if (!key) {
+      setMessages(prev => [...prev, {
+        id: Date.now() + 1,
+        text: "Faol API kalit topilmadi. Administrator panelida kalit qo'shing.",
+        sender: 'bot',
+        time: formatTime()
+      }]);
+      setIsTyping(false);
+      return;
+    }
+
     try {
-      const res = await fetch(apiUrl('/api/ai/chat'), {
-        method: 'POST',
-        headers: { 'Content-Type': 'application/json' },
-        body: JSON.stringify({ message: msgText })
-      });
-      const data = await res.json();
-      if (data.success) {
-        setMessages(prev => [...prev, {
-          id: Date.now() + 1, text: data.reply, sender: 'bot', time: formatTime()
-        }]);
-        fetchStats();
-      } else {
-        setMessages(prev => [...prev, {
-          id: Date.now() + 1, text: `${data.error}`, sender: 'bot', time: formatTime()
-        }]);
+      const { reply, model } = await generateGemini(
+        key.apiKey,
+        liveSettings.defaultModel,
+        `${liveSettings.systemPrompt}\n\nFoydalanuvchi: ${msgText}`
+      );
+
+      if (model && model !== liveSettings.defaultModel) {
+        const next = { ...liveSettings, defaultModel: model };
+        setAiSettings(next);
+        setSettings(next);
       }
+
+      recordKeyUsage(key._id);
+      setStats(getAiStats());
+
+      setMessages(prev => [...prev, {
+        id: Date.now() + 1,
+        text: reply,
+        sender: 'bot',
+        time: formatTime()
+      }]);
     } catch (err) {
       setMessages(prev => [...prev, {
         id: Date.now() + 1,
-        text: "Serverga ulanib bo'lmadi. Backend ishga tushirilganligini tekshiring (port 5000).",
+        text: friendlyError(err),
         sender: 'bot',
         time: formatTime()
       }]);
@@ -117,7 +118,7 @@ const AiAssistantPage: React.FC = () => {
 
   const tabs = [
     { id: 'chat' as const, label: 'Suhbat', icon: '💬' },
-    { id: 'limits' as const, label: 'Limitlar', icon: '📊' },
+    { id: 'limits' as const, label: 'Limitlar', icon: '📊' }
   ];
 
   const aiReady = settings?.enabled && stats.keysActive > 0;
@@ -131,7 +132,6 @@ const AiAssistantPage: React.FC = () => {
 
   return (
     <div className="ai-assistant-page">
-      {/* Tab Bar */}
       <div className="ai-tabs-bar">
         {tabs.map(tab => (
           <button
@@ -144,7 +144,6 @@ const AiAssistantPage: React.FC = () => {
         ))}
       </div>
 
-      {/* ===== CHAT TAB ===== */}
       {activeTab === 'chat' && (
         <>
           <div className="ai-chat-header">
@@ -152,9 +151,7 @@ const AiAssistantPage: React.FC = () => {
               <div className="ai-avatar-ring"><div className="ai-avatar-dot"></div></div>
               <div>
                 <h2 className="ai-chat-title">Huquqiy AI Yordamchi</h2>
-                <span className="ai-chat-status"><span className="status-dot"></span>
-                  {statusText}
-                </span>
+                <span className="ai-chat-status"><span className="status-dot"></span>{statusText}</span>
               </div>
             </div>
           </div>
@@ -181,7 +178,7 @@ const AiAssistantPage: React.FC = () => {
           <div className="ai-chat-input-bar">
             <textarea
               className="ai-chat-input"
-              placeholder={aiReady ? "Savolingizni yozing..." : "AI hozircha mavjud emas..."}
+              placeholder={aiReady ? 'Savolingizni yozing...' : "AI hozircha mavjud emas..."}
               value={input}
               onChange={e => setInput(e.target.value)}
               onKeyDown={handleKeyDown}
@@ -198,7 +195,6 @@ const AiAssistantPage: React.FC = () => {
         </>
       )}
 
-      {/* ===== LIMITS TAB ===== */}
       {activeTab === 'limits' && (
         <div className="ai-limits-section">
           <h2>Limitlar va statistika</h2>
@@ -233,7 +229,7 @@ const AiAssistantPage: React.FC = () => {
             </div>
           </div>
           <p style={{ marginTop: '20px', color: '#64748b', fontSize: '14px' }}>
-            API kalitlarni boshqarish faqat administratorda. Limitlar tugagan bo'lsa administratorga murojaat qiling.
+            API kalitlarni boshqarish faqat administratorda.
           </p>
         </div>
       )}
