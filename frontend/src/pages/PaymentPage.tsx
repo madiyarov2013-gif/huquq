@@ -1,4 +1,5 @@
 import React, { useState, useEffect } from 'react';
+import { apiUrl } from '../config';
 import { useNavigate } from 'react-router-dom';
 import { Check, CreditCard, Lock, Shield, Sparkles, Crown, Bot, Calendar, X, Zap, Rocket } from 'lucide-react';
 
@@ -165,7 +166,7 @@ const PaymentPage: React.FC = () => {
 
       // Persist subscription on the backend (best-effort — local state still updates)
       try {
-        await fetch('http://localhost:5000/api/subscriptions', {
+        await fetch(apiUrl('/api/subscriptions'), {
           method: 'POST',
           headers: { 'Content-Type': 'application/json' },
           body: JSON.stringify({

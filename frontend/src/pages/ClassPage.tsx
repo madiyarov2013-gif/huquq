@@ -1,4 +1,5 @@
 import { useState, useEffect } from 'react';
+import { apiUrl } from '../config';
 import { useParams, Link } from 'react-router-dom';
 import { ChevronRight, Gavel, Lock, GraduationCap } from 'lucide-react';
 import { getBooksByGrade } from '../data/books';
@@ -29,7 +30,7 @@ const ClassPage = () => {
     const fetchBooks = async () => {
       setLoading(true);
       try {
-        const res = await fetch(`http://localhost:5000/api/classes/${id}/books`);
+        const res = await fetch(apiUrl(`/api/classes/${id}/books`));
         const data = await res.json();
         if (data.success && data.data && data.data.length > 0) {
           setBooks(data.data);

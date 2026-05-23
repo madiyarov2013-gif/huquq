@@ -1,4 +1,5 @@
 import { useState, useEffect, useMemo } from 'react';
+import { apiUrl } from '../config';
 import {
   ClipboardList,
   Check, ArrowRight, ArrowLeft, RefreshCw, AlertCircle, Timer, CheckCircle2,
@@ -456,7 +457,7 @@ const TestsPage = () => {
     const fetchTests = async () => {
       setLoading(true);
       try {
-        const res = await fetch('http://localhost:5000/api/tests');
+        const res = await fetch(apiUrl('/api/tests'));
         const data = await res.json();
         const dbTests: Test[] = data.success && data.data ? data.data : [];
         const staticAll: Test[] = Object.values(STATIC_FALLBACK_TESTS).flat();

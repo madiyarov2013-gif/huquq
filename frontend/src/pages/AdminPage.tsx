@@ -1,4 +1,5 @@
 import React, { useState, useEffect } from 'react';
+import { apiUrl } from '../config';
 import {
   ShieldCheck, Lock, LayoutDashboard, BookOpen,
   Plus, Edit, Trash2, Save, X, PlusCircle, HelpCircle,
@@ -179,7 +180,7 @@ const AdminPage: React.FC = () => {
 
   const fetchStats = async () => {
     try {
-      const res = await fetch('http://localhost:5000/api/stats');
+      const res = await fetch(apiUrl('/api/stats'));
       const data = await res.json();
       if (data.success) {
         setStats(data.data);
@@ -191,7 +192,7 @@ const AdminPage: React.FC = () => {
 
   const fetchBooks = async () => {
     try {
-      const res = await fetch('http://localhost:5000/api/books');
+      const res = await fetch(apiUrl('/api/books'));
       const data = await res.json();
       if (data.success) {
         setBooks(data.data);
@@ -203,7 +204,7 @@ const AdminPage: React.FC = () => {
 
   const fetchTests = async () => {
     try {
-      const res = await fetch('http://localhost:5000/api/tests');
+      const res = await fetch(apiUrl('/api/tests'));
       const data = await res.json();
       if (data.success) {
         setTests(data.data);
@@ -216,7 +217,7 @@ const AdminPage: React.FC = () => {
   // ===== AI handlers =====
   const fetchAiSettings = async () => {
     try {
-      const res = await fetch('http://localhost:5000/api/ai/settings');
+      const res = await fetch(apiUrl('/api/ai/settings'));
       const data = await res.json();
       if (data.success) setAiSettings(data.data);
     } catch (err) {
@@ -226,7 +227,7 @@ const AdminPage: React.FC = () => {
 
   const fetchAiKeys = async () => {
     try {
-      const res = await fetch('http://localhost:5000/api/ai/keys');
+      const res = await fetch(apiUrl('/api/ai/keys'));
       const data = await res.json();
       if (data.success) setAiKeys(data.data);
     } catch (err) {
@@ -236,7 +237,7 @@ const AdminPage: React.FC = () => {
 
   const fetchAiStats = async () => {
     try {
-      const res = await fetch('http://localhost:5000/api/ai/stats');
+      const res = await fetch(apiUrl('/api/ai/stats'));
       const data = await res.json();
       if (data.success) setAiStats(data.data);
     } catch (err) {
@@ -246,7 +247,7 @@ const AdminPage: React.FC = () => {
 
   const handleSaveAiSettings = async () => {
     try {
-      const res = await fetch('http://localhost:5000/api/ai/settings', {
+      const res = await fetch(apiUrl('/api/ai/settings'), {
         method: 'PUT',
         headers: { 'Content-Type': 'application/json' },
         body: JSON.stringify(aiSettings)
@@ -269,7 +270,7 @@ const AdminPage: React.FC = () => {
       return;
     }
     try {
-      const res = await fetch('http://localhost:5000/api/ai/keys', {
+      const res = await fetch(apiUrl('/api/ai/keys'), {
         method: 'POST',
         headers: { 'Content-Type': 'application/json' },
         body: JSON.stringify(newAiKey)
@@ -291,7 +292,7 @@ const AdminPage: React.FC = () => {
 
   const handleToggleAiKey = async (k: AiKey) => {
     try {
-      const res = await fetch(`http://localhost:5000/api/ai/keys/${k._id}`, {
+      const res = await fetch(apiUrl(`/api/ai/keys/${k._id}`), {
         method: 'PUT',
         headers: { 'Content-Type': 'application/json' },
         body: JSON.stringify({ active: !k.active })
@@ -310,7 +311,7 @@ const AdminPage: React.FC = () => {
 
   const handleUpdateAiKeyLimit = async (id: string, dailyLimit: number) => {
     try {
-      const res = await fetch(`http://localhost:5000/api/ai/keys/${id}`, {
+      const res = await fetch(apiUrl(`/api/ai/keys/${id}`), {
         method: 'PUT',
         headers: { 'Content-Type': 'application/json' },
         body: JSON.stringify({ dailyLimit })
@@ -330,7 +331,7 @@ const AdminPage: React.FC = () => {
   // ===== Subscription handlers =====
   const fetchSubscriptions = async () => {
     try {
-      const res = await fetch('http://localhost:5000/api/subscriptions');
+      const res = await fetch(apiUrl('/api/subscriptions'));
       const data = await res.json();
       if (data.success) setSubscriptions(data.data);
     } catch (err) {
@@ -340,7 +341,7 @@ const AdminPage: React.FC = () => {
 
   const fetchSubStats = async () => {
     try {
-      const res = await fetch('http://localhost:5000/api/subscriptions/stats');
+      const res = await fetch(apiUrl('/api/subscriptions/stats'));
       const data = await res.json();
       if (data.success) setSubStats(data.data);
     } catch (err) {
@@ -351,7 +352,7 @@ const AdminPage: React.FC = () => {
   const handleDeleteSubscription = async (id: string) => {
     if (!window.confirm("Haqiqatan ham ushbu to'lov yozuvini o'chirmoqchimisiz?")) return;
     try {
-      const res = await fetch(`http://localhost:5000/api/subscriptions/${id}`, { method: 'DELETE' });
+      const res = await fetch(apiUrl(`/api/subscriptions/${id}`), { method: 'DELETE' });
       const data = await res.json();
       if (data.success) {
         fetchSubscriptions();
@@ -368,7 +369,7 @@ const AdminPage: React.FC = () => {
   const handleDeleteAiKey = async (id: string) => {
     if (!window.confirm("Haqiqatan ham ushbu kalitni o'chirmoqchimisiz?")) return;
     try {
-      const res = await fetch(`http://localhost:5000/api/ai/keys/${id}`, { method: 'DELETE' });
+      const res = await fetch(apiUrl(`/api/ai/keys/${id}`), { method: 'DELETE' });
       const data = await res.json();
       if (data.success) {
         fetchAiKeys();
@@ -385,7 +386,7 @@ const AdminPage: React.FC = () => {
   const handleTestAiKey = async (id: string) => {
     try {
       showNotification("Kalit tekshirilmoqda...");
-      const res = await fetch(`http://localhost:5000/api/ai/keys/${id}/test`, { method: 'POST' });
+      const res = await fetch(apiUrl(`/api/ai/keys/${id}/test`), { method: 'POST' });
       const data = await res.json();
       if (data.success) {
         showNotification(`Kalit ishlayapti — javob: "${(data.reply || '').slice(0, 80)}"`);
@@ -404,7 +405,7 @@ const AdminPage: React.FC = () => {
     }
     try {
       showNotification("Kalit tekshirilmoqda...");
-      const res = await fetch('http://localhost:5000/api/ai/test', {
+      const res = await fetch(apiUrl('/api/ai/test'), {
         method: 'POST',
         headers: { 'Content-Type': 'application/json' },
         body: JSON.stringify({ apiKey: newAiKey.apiKey, provider: newAiKey.provider })
@@ -483,8 +484,8 @@ const AdminPage: React.FC = () => {
 
     try {
       const url = isNewBook 
-        ? 'http://localhost:5000/api/books' 
-        : `http://localhost:5000/api/books/${editingBook._id}`;
+        ? apiUrl('/api/books') 
+        : apiUrl(`/api/books/${editingBook._id}`);
       const method = isNewBook ? 'POST' : 'PUT';
 
       const res = await fetch(url, {
@@ -511,7 +512,7 @@ const AdminPage: React.FC = () => {
     if (!id || !window.confirm('Haqiqatan ham ushbu darslikni o\'chirmoqchimisiz?')) return;
 
     try {
-      const res = await fetch(`http://localhost:5000/api/books/${id}`, {
+      const res = await fetch(apiUrl(`/api/books/${id}`), {
         method: 'DELETE'
       });
       const data = await res.json();
@@ -639,8 +640,8 @@ const AdminPage: React.FC = () => {
 
     try {
       const url = isNewTest 
-        ? 'http://localhost:5000/api/tests' 
-        : `http://localhost:5000/api/tests/${editingTest._id}`;
+        ? apiUrl('/api/tests') 
+        : apiUrl(`/api/tests/${editingTest._id}`);
       const method = isNewTest ? 'POST' : 'PUT';
 
       const res = await fetch(url, {
@@ -667,7 +668,7 @@ const AdminPage: React.FC = () => {
     if (!id || !window.confirm('Haqiqatan ham ushbu testni o\'chirmoqchimisiz?')) return;
 
     try {
-      const res = await fetch(`http://localhost:5000/api/tests/${id}`, {
+      const res = await fetch(apiUrl(`/api/tests/${id}`), {
         method: 'DELETE'
       });
       const data = await res.json();

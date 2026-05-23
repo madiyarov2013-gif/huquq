@@ -1,4 +1,5 @@
 import React, { useState, useRef, useEffect } from 'react';
+import { apiUrl } from '../config';
 
 interface Message {
   id: number;
@@ -46,7 +47,7 @@ const AiAssistantPage: React.FC = () => {
 
   const fetchSettings = async () => {
     try {
-      const res = await fetch('http://localhost:5000/api/ai/settings');
+      const res = await fetch(apiUrl('/api/ai/settings'));
       const data = await res.json();
       if (data.success) {
         setSettings(data.data);
@@ -64,7 +65,7 @@ const AiAssistantPage: React.FC = () => {
 
   const fetchStats = async () => {
     try {
-      const res = await fetch('http://localhost:5000/api/ai/stats');
+      const res = await fetch(apiUrl('/api/ai/stats'));
       const data = await res.json();
       if (data.success) setStats(data.data);
     } catch (err) {
@@ -83,7 +84,7 @@ const AiAssistantPage: React.FC = () => {
     setIsTyping(true);
 
     try {
-      const res = await fetch('http://localhost:5000/api/ai/chat', {
+      const res = await fetch(apiUrl('/api/ai/chat'), {
         method: 'POST',
         headers: { 'Content-Type': 'application/json' },
         body: JSON.stringify({ message: msgText })
