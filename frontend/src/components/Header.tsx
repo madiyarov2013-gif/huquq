@@ -246,7 +246,8 @@ const Header = ({ onMenuClick }: HeaderProps) => {
             style={{ cursor: 'pointer', position: 'relative' }}
           >
             <Bell size={20} />
-            {/* Always-visible red dot when there are unread notifications */}
+            {/* Persistent red dot whenever there are unread notifications —
+                simple, calm indicator (like a phone notification dot). */}
             {unreadCount > 0 && (
               <>
                 <span className="notif-red-dot" />
@@ -254,18 +255,6 @@ const Header = ({ onMenuClick }: HeaderProps) => {
                     is on (i.e. a brand-new notification just arrived). */}
                 <span className={`notif-ripple ${bellPulse ? 'is-strong' : ''}`} />
                 <span className={`notif-ripple notif-ripple-2 ${bellPulse ? 'is-strong' : ''}`} />
-                <span className={bellPulse ? 'bell-badge-pulse' : ''} style={{
-                  position: 'absolute', top: '4px', right: '4px',
-                  minWidth: '18px', height: '18px', padding: '0 5px',
-                  borderRadius: '999px',
-                  background: 'linear-gradient(135deg, #ef4444 0%, #dc2626 100%)',
-                  color: '#fff', fontSize: '10px', fontWeight: 800,
-                  display: 'flex', alignItems: 'center', justifyContent: 'center',
-                  boxShadow: '0 2px 6px rgba(239, 68, 68, 0.5), 0 0 0 2px #fff',
-                  zIndex: 2
-                }}>
-                  {unreadCount > 99 ? '99+' : unreadCount}
-                </span>
               </>
             )}
           </button>
