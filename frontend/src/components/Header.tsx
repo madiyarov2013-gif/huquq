@@ -218,8 +218,29 @@ const Header = ({ onMenuClick }: HeaderProps) => {
       setCardError("Karta raqami 16 ta raqamdan iborat bo'lishi kerak");
       return;
     }
+    // Uzbek cards only: Humo starts with 9860, UzCard with 8600.
+    const prefix = cleanNumber.slice(0, 4);
+    if (prefix !== '8600' && prefix !== '9860') {
+      setCardError("Karta 8600 (UzCard) yoki 9860 (Humo) bilan boshlanishi kerak");
+      return;
+    }
     if (!/^\d{2}\/\d{2}$/.test(cardForm.expiry)) {
       setCardError("Amal qilish muddatini MM/YY shaklida kiriting");
+      return;
+    }
+    const [mmStr, yyStr] = cardForm.expiry.split('/');
+    const mm = parseInt(mmStr, 10);
+    const yy = parseInt(yyStr, 10);
+    if (mm < 1 || mm > 12) {
+      setCardError("Oy 01 dan 12 gacha bo'lishi kerak");
+      return;
+    }
+    const now = new Date();
+    const currentYY = now.getFullYear() % 100;
+    const currentMM = now.getMonth() + 1; // 1-12
+    // Treat YY as 20YY. Card is invalid if its year/month is already past.
+    if (yy < currentYY || (yy === currentYY && mm < currentMM)) {
+      setCardError("Karta muddati o'tib ketgan");
       return;
     }
     if (!cardForm.holder.trim()) {
