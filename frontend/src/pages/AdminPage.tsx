@@ -2,6 +2,7 @@ import React, { useState, useEffect } from 'react';
 import { apiUrl } from '../config';
 import * as aiStore from '../ai-store';
 import * as paymentsStore from '../payments-store';
+import * as usersStore from '../users-store';
 import { generateGemini, friendlyError } from '../ai-client';
 import {
   ShieldCheck, Lock, LayoutDashboard, BookOpen,
@@ -184,11 +185,15 @@ const AdminPage: React.FC = () => {
     const refresh = () => { fetchSubscriptions(); };
     window.addEventListener('huquq-payments-change', refresh);
     window.addEventListener('huquq-payment-change', refresh);
+    // huquq-users-change fires when a new user is registered / login
+    // upserts — that's when trial-tier counts change.
+    window.addEventListener('huquq-users-change', refresh);
     window.addEventListener('storage', refresh);
     window.addEventListener('focus', refresh);
     return () => {
       window.removeEventListener('huquq-payments-change', refresh);
       window.removeEventListener('huquq-payment-change', refresh);
+      window.removeEventListener('huquq-users-change', refresh);
       window.removeEventListener('storage', refresh);
       window.removeEventListener('focus', refresh);
     };
@@ -287,10 +292,43 @@ const AdminPage: React.FC = () => {
     // isn't running (Vercel deploy, dev forgot to start Express, etc).
     const merged = await paymentsStore.fetchAllPayments();
     setSubscriptions(merged as unknown as Subscription[]);
-    // Recompute stats from the merged list — backend may have its own
-    // /stats endpoint, but for parity we compute locally so the numbers
-    // match exactly what the admin sees in the table.
-    setSubStats(paymentsStore.computeStats(merged) as unknown as SubscriptionStats);
+
+    // Also include free-trial users (those granted 30-day Pro via the
+    // launch promo) so the Pro/Max counts on the dashboard reflect the
+    // *real* number of users with an active subscription, not just those
+    // who paid money. Synthetic records are tagged 'trial' so they show
+    // up clearly in the list and don't inflate the revenue numbers.
+    const users = await usersStore.fetchAllUsers();
+    const paidLogins = new Set(
+      merged.map(p => (p.userLogin || '').toLowerCase()).filter(Boolean)
+    );
+    const now = Date.now();
+    const trialRecords: paymentsStore.Subscription[] = users
+      .filter(u =>
+        u.paidTier &&
+        u.paidUntil &&
+        new Date(u.paidUntil).getTime() > now &&
+        !paidLogins.has(u.login.toLowerCase())
+      )
+      .map(u => ({
+        _id: 'trial_' + u.login.toLowerCase(),
+        userLogin: u.login,
+        userName: [u.firstName, u.lastName].filter(Boolean).join(' ').trim(),
+        tier: (u.paidTier as 'pro' | 'max'),
+        duration: 'monthly' as const,
+        amount: 0,
+        paidAt: u.createdAt,
+        expiresAt: u.paidUntil as string,
+        status: 'active' as const,
+        cardLast4: '',
+        _source: 'local' as const
+      }));
+
+    const combined = [...merged, ...trialRecords];
+    // Recompute stats from the combined list — Pro/Max trial users are now
+    // counted, but `totalRevenue`/`monthlyRevenue` stay at 0 for trials.
+    setSubStats(paymentsStore.computeStats(combined) as unknown as SubscriptionStats);
+    setSubscriptions(combined as unknown as Subscription[]);
   };
 
   const fetchSubStats = async () => {

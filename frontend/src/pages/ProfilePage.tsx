@@ -81,6 +81,81 @@ const clearUserSession = (): void => {
   } catch { /* ignore */ }
 };
 
+// === Per-role credential vault ============================================
+// Keep admin and user credentials in separate slots so each can be edited
+// independently and survive a logout. Without this, an admin who renames
+// themselves from "admin" → "myadmin" would lock themselves out as soon as
+// they log out, because the default 'admin/admin123' shortcut would still
+// be checked first while the saved profile would have been overwritten by
+// whichever user logs in next.
+const ADMIN_CREDS_KEY = 'huquq_admin_credentials_v1';
+const USER_CREDS_KEY = 'huquq_user_credentials_v1';
+
+type Creds = { login: string; password: string; firstName?: string; lastName?: string };
+
+const readCreds = (key: string): Creds | null => {
+  try {
+    const raw = localStorage.getItem(key);
+    if (!raw) return null;
+    const c = JSON.parse(raw);
+    return c && c.login && c.password ? c : null;
+  } catch { return null; }
+};
+
+const writeCreds = (key: string, creds: Creds): void => {
+  try { localStorage.setItem(key, JSON.stringify(creds)); } catch { /* ignore */ }
+};
+
+// Find which role (if any) the entered login/password matches. We check the
+// per-role vaults first (so user-customised credentials win) and fall back
+// to the factory shortcuts (admin/admin123 and user/user123) when the
+// vault is empty.
+const matchRole = (login: string, password: string): {
+  role: 'admin' | 'user';
+  profile: { firstName: string; lastName: string; login: string; password: string };
+} | null => {
+  const lowerLogin = login.toLowerCase();
+
+  const adminVault = readCreds(ADMIN_CREDS_KEY);
+  if (adminVault && lowerLogin === adminVault.login.toLowerCase() && password === adminVault.password) {
+    return {
+      role: 'admin',
+      profile: {
+        firstName: adminVault.firstName || 'Administrator',
+        lastName: adminVault.lastName || 'Tizim',
+        login: adminVault.login,
+        password: adminVault.password
+      }
+    };
+  }
+  if (!adminVault && lowerLogin === 'admin' && password === 'admin123') {
+    return {
+      role: 'admin',
+      profile: { firstName: 'Administrator', lastName: 'Tizim', login: 'admin', password: 'admin123' }
+    };
+  }
+
+  const userVault = readCreds(USER_CREDS_KEY);
+  if (userVault && lowerLogin === userVault.login.toLowerCase() && password === userVault.password) {
+    return {
+      role: 'user',
+      profile: {
+        firstName: userVault.firstName || 'Foydalanuvchi',
+        lastName: userVault.lastName || '',
+        login: userVault.login,
+        password: userVault.password
+      }
+    };
+  }
+  if (!userVault && lowerLogin === 'user' && password === 'user123') {
+    return {
+      role: 'user',
+      profile: { firstName: 'Bekzod', lastName: 'Toshmatov', login: 'user', password: 'user123' }
+    };
+  }
+  return null;
+};
+
 const boyAvatars = [
   'https://api.dicebear.com/7.x/avataaars/svg?seed=Felix&backgroundColor=b6e3f4&mouth=smile&eyes=happy',
   'https://api.dicebear.com/7.x/avataaars/svg?seed=Jude&backgroundColor=ffdfbf&mouth=smile,twinkle&eyes=happy',
@@ -196,6 +271,20 @@ const ProfilePage = () => {
     setShowAvatarSelector(false);
     localStorage.setItem('huquq_user_profile', JSON.stringify(formData));
     localStorage.setItem('huquq_user_logged_in', 'true');
+    // Persist updated login/password into the per-role vault so the next
+    // login uses the new credentials. The role is whichever the current
+    // session has — admin vs. regular user — so renaming admin to
+    // "myadmin" or changing user's password actually sticks.
+    const isAdminNow = localStorage.getItem('huquq_admin_authed') === 'true';
+    const vaultKey = isAdminNow ? ADMIN_CREDS_KEY : USER_CREDS_KEY;
+    if (formData?.login && formData?.password) {
+      writeCreds(vaultKey, {
+        login: String(formData.login).trim(),
+        password: String(formData.password),
+        firstName: formData.firstName,
+        lastName: formData.lastName
+      });
+    }
     window.dispatchEvent(new Event('huquq-auth-change'));
   };
 
@@ -262,46 +351,38 @@ const ProfilePage = () => {
 
     const inputLogin = loginUsername.trim();
 
-    // 1. Admin shortcut check
-    if (inputLogin === 'admin' && loginPassword === 'admin123') {
-      const adminProfile = {
-        firstName: 'Administrator',
-        lastName: 'Tizim',
-        login: 'admin',
-        password: 'admin123'
-      };
-      localStorage.setItem('huquq_user_profile', JSON.stringify(adminProfile));
+    // 1. Match per-role vault first (so admin/user who renamed themselves
+    //    keep working) and fall back to the factory shortcuts.
+    const match = matchRole(inputLogin, loginPassword);
+    if (match) {
+      const profile = match.profile;
+      localStorage.setItem('huquq_user_profile', JSON.stringify(profile));
       localStorage.setItem('huquq_user_logged_in', 'true');
-      localStorage.setItem('huquq_admin_authed', 'true');
-      setFormData(adminProfile);
-      setIsLoggedIn(true);
-      window.dispatchEvent(new Event('huquq-auth-change'));
-      setLoginUsername('');
-      setLoginPassword('');
-      navigate('/admin');
-      return;
-    }
-
-    // 2. User shortcut check
-    if (inputLogin === 'user' && loginPassword === 'user123') {
-      const defaultProfile = {
-        firstName: 'Bekzod',
-        lastName: 'Toshmatov',
-        login: 'bekzod',
-        password: 'user123'
-      };
-      localStorage.setItem('huquq_user_profile', JSON.stringify(defaultProfile));
-      localStorage.setItem('huquq_user_logged_in', 'true');
+      if (match.role === 'admin') {
+        localStorage.setItem('huquq_admin_authed', 'true');
+        // Seed the admin vault on first successful default-creds login so
+        // future profile edits land in the right slot.
+        if (!readCreds(ADMIN_CREDS_KEY)) writeCreds(ADMIN_CREDS_KEY, profile);
+        setFormData(profile);
+        setIsLoggedIn(true);
+        window.dispatchEvent(new Event('huquq-auth-change'));
+        setLoginUsername('');
+        setLoginPassword('');
+        navigate('/admin');
+        return;
+      }
+      // Regular user
       localStorage.removeItem('huquq_admin_authed');
-      const trial = grantFreeTrial(defaultProfile.login, 30, 'pro');
+      if (!readCreds(USER_CREDS_KEY)) writeCreds(USER_CREDS_KEY, profile);
+      const trial = grantFreeTrial(profile.login, 30, 'pro');
       upsertUser({
-        firstName: defaultProfile.firstName,
-        lastName: defaultProfile.lastName,
-        login: defaultProfile.login,
+        firstName: profile.firstName,
+        lastName: profile.lastName,
+        login: profile.login,
         paidTier: trial.tier,
         paidUntil: trial.paidUntil
       });
-      setFormData(defaultProfile);
+      setFormData(profile);
       setIsLoggedIn(true);
       window.dispatchEvent(new Event('huquq-auth-change'));
       setLoginUsername('');
@@ -310,39 +391,38 @@ const ProfilePage = () => {
       return;
     }
 
+    // 2. Fallback: also accept the currently-saved profile credentials.
+    //    Useful right after a user registers — the profile is set even if
+    //    the vault wasn't (registration path also seeds the vault now).
     const saved = localStorage.getItem('huquq_user_profile');
     if (!saved) {
-      setErrorMsg("Profil topilmadi. Iltimos, ro'yxatdan o'ting.");
+      setErrorMsg("Login yoki parol noto'g'ri!");
       return;
     }
 
     try {
       const profile = JSON.parse(saved);
       const profileLogin = (profile.login || '').trim();
-
-      if (inputLogin === profileLogin && loginPassword === profile.password) {
+      if (inputLogin.toLowerCase() === profileLogin.toLowerCase() && loginPassword === profile.password) {
         setFormData(profile);
         setIsLoggedIn(true);
         localStorage.setItem('huquq_user_logged_in', 'true');
-        // If the profile we just logged into is not the admin shortcut,
-        // make sure no stale admin flag is left from a previous session.
-        let userTier: 'pro' | 'max' | undefined;
-        let userPaidUntil: string | undefined;
-        if (profileLogin.toLowerCase() !== 'admin') {
-          localStorage.removeItem('huquq_admin_authed');
-          const trial = grantFreeTrial(profileLogin, 30, 'pro');
-          userTier = trial.tier;
-          userPaidUntil = trial.paidUntil;
-        } else {
-          userTier = (localStorage.getItem('huquq_user_tier') as 'pro' | 'max') || undefined;
-          userPaidUntil = localStorage.getItem('huquq_user_paid_until') || undefined;
-        }
+        localStorage.removeItem('huquq_admin_authed');
+        // Seed the user vault so this exact set of credentials keeps
+        // working on next visit.
+        writeCreds(USER_CREDS_KEY, {
+          login: profile.login,
+          password: profile.password,
+          firstName: profile.firstName,
+          lastName: profile.lastName
+        });
+        const trial = grantFreeTrial(profileLogin, 30, 'pro');
         upsertUser({
           firstName: profile.firstName,
           lastName: profile.lastName,
           login: profile.login,
-          paidTier: userTier,
-          paidUntil: userPaidUntil
+          paidTier: trial.tier,
+          paidUntil: trial.paidUntil
         });
         window.dispatchEvent(new Event('huquq-auth-change'));
         setLoginUsername('');
@@ -369,6 +449,14 @@ const ProfilePage = () => {
     // Save profile to localStorage but keep logged_in false
     localStorage.setItem('huquq_user_profile', JSON.stringify(registerData));
     localStorage.setItem('huquq_user_logged_in', 'false');
+    // Seed the user vault so the just-registered credentials authenticate
+    // on the next login (and survive logout).
+    writeCreds(USER_CREDS_KEY, {
+      login: registerData.login,
+      password: registerData.password,
+      firstName: registerData.firstName,
+      lastName: registerData.lastName
+    });
     // Launch promo: every new sign-up gets 30 days of free Pro (once per
     // login per device). Use the returned tier/expiry so we never lie to
     // the users-store about the user's actual paid state.
