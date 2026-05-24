@@ -138,6 +138,25 @@ const AnnouncementsPage: React.FC = () => {
     showToast("O'chirildi");
   };
 
+  const handleDeleteAll = async () => {
+    if (notifs.length === 0) return;
+    if (!window.confirm(`Barcha ${notifs.length} ta bildirishnomani o'chirmoqchimisiz? Bu amalni qaytarib bo'lmaydi.`)) return;
+    // Wipe local store first — single key so it's one write.
+    try {
+      localStorage.removeItem('huquq_notifications_v1');
+      window.dispatchEvent(new Event('huquq-notifications-change'));
+    } catch { /* ignore */ }
+    // Best-effort: also tell the backend to drop the non-local ones.
+    const backendIds = notifs
+      .filter(n => !n._id.startsWith('ntf_') && !n._id.startsWith('loc_'))
+      .map(n => n._id);
+    await Promise.all(backendIds.map(id =>
+      fetch(`/api/notifications/${id}`, { method: 'DELETE' }).catch(() => null)
+    ));
+    await refresh();
+    showToast("Barcha bildirishnomalar o'chirildi");
+  };
+
   return (
     <div style={{ padding: '20px', animation: 'fadeIn 0.3s ease-in-out' }}>
       <div style={{ maxWidth: '1200px', margin: '0 auto' }}>
@@ -443,12 +462,23 @@ const AnnouncementsPage: React.FC = () => {
               <h3 style={{ fontSize: '17px', fontWeight: 700, color: '#0f172a', margin: 0 }}>
                 Yuborilgan e'lonlar ({notifs.length})
               </h3>
-              <button
-                onClick={refresh}
-                style={{ padding: '6px 12px', borderRadius: '8px', border: '1px solid #e2e8f0', background: '#f8fafc', color: '#64748b', fontSize: '12px', fontWeight: 600, cursor: 'pointer' }}
-              >
-                Yangilash
-              </button>
+              <div style={{ display: 'flex', gap: '8px' }}>
+                {notifs.length > 0 && (
+                  <button
+                    onClick={handleDeleteAll}
+                    title="Hammasini o'chirish"
+                    className="announce-clear-btn"
+                  >
+                    <Trash2 size={12} /> Hammasini o'chirish
+                  </button>
+                )}
+                <button
+                  onClick={refresh}
+                  className="announce-refresh-btn"
+                >
+                  Yangilash
+                </button>
+              </div>
             </div>
 
             {notifs.length === 0 ? (
@@ -752,6 +782,45 @@ const AnnouncementsPage: React.FC = () => {
         html[data-theme="dark"] .announce-item .badge-gift-code {
           background: rgba(59, 130, 246, 0.22) !important;
           color: #93c5fd !important;
+        }
+
+        /* List action buttons (Yangilash + Hammasini o'chirish) */
+        .announce-refresh-btn {
+          padding: 6px 12px; border-radius: 8px;
+          border: 1px solid #e2e8f0; background: #f8fafc;
+          color: #64748b; font-size: 12px; font-weight: 600; cursor: pointer;
+        }
+        .announce-refresh-btn:hover { background: #eef2ff; color: #4338ca; border-color: #c7d2fe; }
+        .announce-clear-btn {
+          display: inline-flex; align-items: center; gap: 5px;
+          padding: 6px 12px; border-radius: 8px;
+          border: 1px solid #fecaca; background: #fef2f2;
+          color: #b91c1c; font-size: 12px; font-weight: 600; cursor: pointer;
+          transition: all 0.18s ease;
+        }
+        .announce-clear-btn:hover {
+          background: linear-gradient(135deg, #ef4444 0%, #b91c1c 100%);
+          color: #fff; border-color: transparent;
+          box-shadow: 0 4px 12px rgba(239, 68, 68, 0.35);
+        }
+        html[data-theme="dark"] .announce-refresh-btn {
+          background: #1e293b !important;
+          border-color: rgba(71, 85, 105, 0.5) !important;
+          color: #cbd5e1 !important;
+        }
+        html[data-theme="dark"] .announce-refresh-btn:hover {
+          background: rgba(99, 102, 241, 0.18) !important;
+          color: #a5b4fc !important;
+        }
+        html[data-theme="dark"] .announce-clear-btn {
+          background: rgba(239, 68, 68, 0.12) !important;
+          border-color: rgba(239, 68, 68, 0.4) !important;
+          color: #fca5a5 !important;
+        }
+        html[data-theme="dark"] .announce-clear-btn:hover {
+          background: linear-gradient(135deg, #ef4444 0%, #b91c1c 100%) !important;
+          color: #fff !important;
+          border-color: transparent !important;
         }
 
         /* Gift block — dark variant. Soft amber tint over a navy base so it
