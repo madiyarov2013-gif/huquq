@@ -169,6 +169,10 @@ const ProfilePage = () => {
   const handleLogout = () => {
     setIsLoggedIn(false);
     localStorage.setItem('huquq_user_logged_in', 'false');
+    // Clear admin flag too — otherwise after admin logs out from the profile
+    // page, `huquq_admin_authed` lingers and the next user is mis-detected as
+    // admin (hides the bell, blocks notifications).
+    localStorage.removeItem('huquq_admin_authed');
     window.dispatchEvent(new Event('huquq-auth-change'));
   };
 
@@ -240,6 +244,11 @@ const ProfilePage = () => {
         setFormData(profile);
         setIsLoggedIn(true);
         localStorage.setItem('huquq_user_logged_in', 'true');
+        // If the profile we just logged into is not the admin shortcut,
+        // make sure no stale admin flag is left from a previous session.
+        if (profileLogin.toLowerCase() !== 'admin') {
+          localStorage.removeItem('huquq_admin_authed');
+        }
         upsertUser({
           firstName: profile.firstName,
           lastName: profile.lastName,
