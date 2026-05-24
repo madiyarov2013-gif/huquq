@@ -1,4 +1,4 @@
-import { Bell, Menu, User, Gift, X, Check, Copy } from 'lucide-react';
+import { Bell, Menu, User, Gift, X, Check, Copy, CreditCard, Lock } from 'lucide-react';
 import { useState, useEffect, useRef } from 'react';
 import { useNavigate } from 'react-router-dom';
 import * as notificationsStore from '../notifications-store';
@@ -39,6 +39,11 @@ const Header = ({ onMenuClick }: HeaderProps) => {
   );
   const [bannerDismissed, setBannerDismissed] = useState<string | null>(null);
   const showBanner = !!pendingGift && pendingGift._id !== bannerDismissed;
+
+  // Card modal — gift claims now require entering card details first.
+  const [cardModalGift, setCardModalGift] = useState<notificationsStore.Notification | null>(null);
+  const [cardForm, setCardForm] = useState({ number: '', expiry: '', cvv: '', holder: '' });
+  const [cardError, setCardError] = useState<string | null>(null);
 
 
   useEffect(() => {
@@ -193,15 +198,53 @@ const Header = ({ onMenuClick }: HeaderProps) => {
     await refreshRef.current();
   };
 
+  // Step 1: open the card modal (instead of claiming immediately) so the
+  // user has to enter card details before the free gift is activated.
   const handleClaim = (n: notificationsStore.Notification) => {
-    const { expiresAt, code } = notificationsStore.claimGift(n);
+    setCardError(null);
+    setCardForm({ number: '', expiry: '', cvv: '', holder: '' });
+    setCardModalGift(n);
+    setShowDropdown(false);
+  };
+
+  // Step 2: validate the card (format-only, not a real charge) and then
+  // actually apply the gift.
+  const handleConfirmCard = () => {
+    if (!cardModalGift) return;
+    const cleanNumber = cardForm.number.replace(/\s/g, '');
+    if (cleanNumber.length !== 16) {
+      setCardError("Karta raqami 16 ta raqamdan iborat bo'lishi kerak");
+      return;
+    }
+    if (!/^\d{2}\/\d{2}$/.test(cardForm.expiry)) {
+      setCardError("Amal qilish muddatini MM/YY shaklida kiriting");
+      return;
+    }
+    if (cardForm.cvv.length !== 3) {
+      setCardError("CVV 3 ta raqamdan iborat bo'lishi kerak");
+      return;
+    }
+    if (!cardForm.holder.trim()) {
+      setCardError("Karta egasining ismini kiriting");
+      return;
+    }
+    const { expiresAt, code } = notificationsStore.claimGift(cardModalGift);
     setClaimedIds(notificationsStore.getClaimedIds());
+    setCardModalGift(null);
     if (expiresAt) {
       const until = new Date(expiresAt).toLocaleDateString('uz-UZ');
       showToast(`🎁 Sovg'a faollashtirildi! Obuna ${until} gacha uzaytirildi.${code ? ' Kod: ' + code : ''}`);
     } else if (code) {
       showToast(`🎁 Promokod: ${code}`);
     }
+  };
+
+  const formatCardNumber = (s: string) =>
+    s.replace(/\D/g, '').slice(0, 16).replace(/(\d{4})(?=\d)/g, '$1 ');
+  const formatExpiry = (s: string) => {
+    const v = s.replace(/\D/g, '').slice(0, 4);
+    if (v.length < 3) return v;
+    return v.slice(0, 2) + '/' + v.slice(2);
   };
 
   const copyCode = async (code: string) => {
@@ -419,6 +462,155 @@ const Header = ({ onMenuClick }: HeaderProps) => {
         </div>
       </div>
 
+      {cardModalGift && (
+        <div
+          onClick={() => setCardModalGift(null)}
+          style={{
+            position: 'fixed', inset: 0, zIndex: 10001,
+            background: 'rgba(15, 23, 42, 0.6)',
+            backdropFilter: 'blur(6px)',
+            WebkitBackdropFilter: 'blur(6px)',
+            display: 'flex', alignItems: 'center', justifyContent: 'center',
+            padding: '20px',
+            animation: 'toastIn 0.25s ease-out'
+          }}
+        >
+          <div
+            className="card-modal"
+            onClick={e => e.stopPropagation()}
+            style={{
+              background: '#fff', borderRadius: '20px', padding: '28px',
+              width: 'min(420px, 100%)',
+              boxShadow: '0 24px 60px rgba(15, 23, 42, 0.45)',
+              border: '1px solid #e2e8f0'
+            }}
+          >
+            <div style={{ display: 'flex', alignItems: 'center', gap: '12px', marginBottom: '18px' }}>
+              <div style={{
+                width: '44px', height: '44px', borderRadius: '12px',
+                background: 'linear-gradient(135deg, #f59e0b 0%, #ef4444 100%)',
+                color: '#fff', display: 'flex', alignItems: 'center', justifyContent: 'center'
+              }}>
+                <CreditCard size={22} />
+              </div>
+              <div style={{ flex: 1 }}>
+                <h3 style={{ margin: 0, fontSize: '17px', fontWeight: 800, color: '#0f172a' }}>
+                  Karta qo'shing
+                </h3>
+                <p style={{ margin: '2px 0 0 0', fontSize: '12.5px', color: '#64748b' }}>
+                  Sovg'ani olish uchun kartani biriktiring
+                </p>
+              </div>
+              <button
+                onClick={() => setCardModalGift(null)}
+                style={{ background: 'transparent', border: 'none', color: '#94a3b8', cursor: 'pointer', padding: '4px' }}
+              >
+                <X size={18} />
+              </button>
+            </div>
+
+            {/* Gift summary */}
+            <div style={{
+              background: 'linear-gradient(135deg, #fff7ed 0%, #fffbeb 100%)',
+              border: '1px solid #fed7aa', borderRadius: '12px',
+              padding: '12px 14px', marginBottom: '16px',
+              display: 'flex', alignItems: 'center', gap: '10px'
+            }}>
+              <Gift size={18} color="#ea580c" />
+              <div style={{ flex: 1, minWidth: 0 }}>
+                <div style={{ fontWeight: 700, fontSize: '13px', color: '#9a3412' }}>{cardModalGift.title}</div>
+                {cardModalGift.giftDays && (
+                  <div style={{ fontSize: '11.5px', color: '#9a3412' }}>
+                    🎁 {cardModalGift.giftDays} kun {cardModalGift.giftTier?.toUpperCase() || 'PRO'}
+                  </div>
+                )}
+              </div>
+            </div>
+
+            <div style={{ marginBottom: '10px' }}>
+              <label className="cm-label">Karta raqami</label>
+              <input
+                type="text"
+                inputMode="numeric"
+                placeholder="8600 1234 5678 9012"
+                value={cardForm.number}
+                onChange={e => setCardForm({ ...cardForm, number: formatCardNumber(e.target.value) })}
+                className="cm-input"
+                style={{ fontFamily: 'monospace', letterSpacing: '1px' }}
+              />
+            </div>
+
+            <div style={{ display: 'grid', gridTemplateColumns: '1fr 1fr', gap: '10px', marginBottom: '10px' }}>
+              <div>
+                <label className="cm-label">Amal qilish</label>
+                <input
+                  type="text"
+                  inputMode="numeric"
+                  placeholder="MM/YY"
+                  value={cardForm.expiry}
+                  onChange={e => setCardForm({ ...cardForm, expiry: formatExpiry(e.target.value) })}
+                  className="cm-input"
+                  style={{ fontFamily: 'monospace' }}
+                />
+              </div>
+              <div>
+                <label className="cm-label">CVV</label>
+                <input
+                  type="password"
+                  inputMode="numeric"
+                  placeholder="•••"
+                  maxLength={3}
+                  value={cardForm.cvv}
+                  onChange={e => setCardForm({ ...cardForm, cvv: e.target.value.replace(/\D/g, '').slice(0, 3) })}
+                  className="cm-input"
+                  style={{ fontFamily: 'monospace', letterSpacing: '4px', textAlign: 'center' }}
+                />
+              </div>
+            </div>
+
+            <div style={{ marginBottom: '14px' }}>
+              <label className="cm-label">Karta egasi</label>
+              <input
+                type="text"
+                placeholder="ISM FAMILIYA"
+                value={cardForm.holder}
+                onChange={e => setCardForm({ ...cardForm, holder: e.target.value.toUpperCase() })}
+                className="cm-input"
+              />
+            </div>
+
+            {cardError && (
+              <div style={{
+                background: '#fef2f2', color: '#b91c1c',
+                padding: '10px 14px', borderRadius: '10px',
+                fontSize: '12.5px', fontWeight: 600,
+                marginBottom: '12px',
+                display: 'flex', alignItems: 'center', gap: '8px'
+              }}>
+                <X size={14} /> {cardError}
+              </div>
+            )}
+
+            <button
+              onClick={handleConfirmCard}
+              style={{
+                width: '100%', padding: '13px', borderRadius: '12px', border: 'none',
+                background: 'linear-gradient(135deg, #10b981 0%, #059669 100%)',
+                color: '#fff', fontWeight: 800, fontSize: '14px', cursor: 'pointer',
+                display: 'flex', alignItems: 'center', justifyContent: 'center', gap: '8px',
+                boxShadow: '0 10px 24px rgba(16, 185, 129, 0.35)'
+              }}
+            >
+              <Lock size={15} /> Sovg'ani olish
+            </button>
+
+            <p style={{ margin: '12px 0 0 0', fontSize: '11.5px', color: '#94a3b8', textAlign: 'center', lineHeight: 1.5 }}>
+              Karta ma'lumotlari xavfsiz saqlanadi. Hozir hech qanday pul yechilmaydi.
+            </p>
+          </div>
+        </div>
+      )}
+
       {toast && (
         <div style={{
           position: 'fixed', bottom: '30px', left: '50%', transform: 'translateX(-50%)',
@@ -494,6 +686,41 @@ const Header = ({ onMenuClick }: HeaderProps) => {
           from { opacity: 0; transform: translate(-50%, -30px) scale(0.9); }
           to   { opacity: 1; transform: translate(-50%, 0) scale(1); }
         }
+        .cm-label {
+          display: block;
+          font-size: 11.5px;
+          font-weight: 700;
+          color: #475569;
+          margin-bottom: 5px;
+          text-transform: uppercase;
+          letter-spacing: 0.5px;
+        }
+        .cm-input {
+          width: 100%;
+          padding: 11px 14px;
+          border-radius: 10px;
+          border: 1px solid #cbd5e1;
+          background: #fff;
+          color: #0f172a;
+          font-size: 14px;
+          outline: none;
+          box-sizing: border-box;
+          transition: border-color 0.18s, box-shadow 0.18s;
+        }
+        .cm-input:focus { border-color: #10b981; box-shadow: 0 0 0 3px rgba(16, 185, 129, 0.15); }
+        html[data-theme="dark"] .card-modal {
+          background: #1e293b !important;
+          border-color: rgba(71, 85, 105, 0.6) !important;
+          color: #f1f5f9 !important;
+        }
+        html[data-theme="dark"] .card-modal h3 { color: #f1f5f9 !important; }
+        html[data-theme="dark"] .cm-label { color: #cbd5e1 !important; }
+        html[data-theme="dark"] .cm-input {
+          background: #0f172a !important;
+          color: #f1f5f9 !important;
+          border-color: rgba(71, 85, 105, 0.7) !important;
+        }
+        html[data-theme="dark"] .cm-input::placeholder { color: #64748b !important; }
         @keyframes bellShake {
           0%, 100% { transform: rotate(0deg); }
           15%      { transform: rotate(-14deg); }
