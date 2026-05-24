@@ -471,9 +471,9 @@ const AnnouncementsPage: React.FC = () => {
                         {n.type === 'gift'
                           ? <Gift size={16} color="#ea580c" />
                           : <Bell size={16} color="#4f46e5" />}
-                        <span style={{ fontWeight: 700, color: '#0f172a', fontSize: '14px' }}>{n.title}</span>
+                        <span className="announce-item-title">{n.title}</span>
                         {n._source === 'local' && (
-                          <span style={{ fontSize: '10px', padding: '2px 6px', borderRadius: '999px', background: '#fee2e2', color: '#b91c1c', fontWeight: 700 }}>LOKAL</span>
+                          <span className="badge-lokal">LOKAL</span>
                         )}
                       </div>
                       <button
@@ -487,11 +487,11 @@ const AnnouncementsPage: React.FC = () => {
                     <p style={{ margin: '4px 0 8px 0', fontSize: '13px', color: '#475569', lineHeight: 1.5 }}>{n.message}</p>
                     <div style={{ display: 'flex', gap: '6px', flexWrap: 'wrap', marginBottom: '6px' }}>
                       {n.targetUsers && n.targetUsers.length > 0 ? (
-                        <span style={{ fontSize: '10.5px', fontWeight: 700, padding: '3px 8px', borderRadius: '999px', background: '#eef2ff', color: '#4338ca', display: 'inline-flex', alignItems: 'center', gap: '4px' }}>
+                        <span className="badge-target">
                           <UserPlus size={11} /> {n.targetUsers.length} ta foydalanuvchiga
                         </span>
                       ) : (
-                        <span style={{ fontSize: '10.5px', fontWeight: 700, padding: '3px 8px', borderRadius: '999px', background: '#ecfdf5', color: '#047857', display: 'inline-flex', alignItems: 'center', gap: '4px' }}>
+                        <span className="badge-all">
                           <Users size={11} /> Hammaga
                         </span>
                       )}
@@ -499,12 +499,12 @@ const AnnouncementsPage: React.FC = () => {
                     {n.type === 'gift' && (
                       <div style={{ display: 'flex', gap: '8px', flexWrap: 'wrap' }}>
                         {n.giftDays ? (
-                          <span style={{ fontSize: '11px', fontWeight: 700, padding: '4px 10px', borderRadius: '999px', background: '#fed7aa', color: '#9a3412' }}>
+                          <span className="badge-gift-days">
                             🎁 {n.giftDays} kun {n.giftTier?.toUpperCase()}
                           </span>
                         ) : null}
                         {n.giftCode ? (
-                          <span style={{ fontSize: '11px', fontWeight: 700, padding: '4px 10px', borderRadius: '999px', background: '#dbeafe', color: '#1e40af', fontFamily: 'monospace' }}>
+                          <span className="badge-gift-code">
                             {n.giftCode}{n.giftPercent ? ` · -${n.giftPercent}%` : ''}
                           </span>
                         ) : null}
@@ -698,6 +698,61 @@ const AnnouncementsPage: React.FC = () => {
         }
         html[data-theme="dark"] .announce-item span,
         html[data-theme="dark"] .announce-item p { color: #e2e8f0 !important; }
+
+        /* Notification-card badges (LOKAL, Hammaga, X kun MAX, promo code) */
+        .announce-item-title { font-weight: 700; color: #0f172a; font-size: 14px; }
+        .badge-lokal {
+          font-size: 10px; padding: 2px 6px; border-radius: 999px;
+          background: #fee2e2; color: #b91c1c; font-weight: 700;
+        }
+        .badge-target {
+          font-size: 10.5px; font-weight: 700;
+          padding: 3px 8px; border-radius: 999px;
+          background: #eef2ff; color: #4338ca;
+          display: inline-flex; align-items: center; gap: 4px;
+        }
+        .badge-all {
+          font-size: 10.5px; font-weight: 700;
+          padding: 3px 8px; border-radius: 999px;
+          background: #ecfdf5; color: #047857;
+          display: inline-flex; align-items: center; gap: 4px;
+        }
+        .badge-gift-days {
+          font-size: 11px; font-weight: 700;
+          padding: 4px 10px; border-radius: 999px;
+          background: #fed7aa; color: #9a3412;
+        }
+        .badge-gift-code {
+          font-size: 11px; font-weight: 700;
+          padding: 4px 10px; border-radius: 999px;
+          background: #dbeafe; color: #1e40af; font-family: monospace;
+        }
+
+        /* Dark-mode variants for the notification-card badges. Scoped
+           under .announce-item to outrank the generic
+           html[data-theme="dark"] .announce-item span color sweep that
+           would otherwise flatten the badge text to slate-200. */
+        html[data-theme="dark"] .announce-item .announce-item-title { color: #f1f5f9 !important; }
+        html[data-theme="dark"] .announce-item .badge-lokal {
+          background: rgba(239, 68, 68, 0.18) !important;
+          color: #fca5a5 !important;
+        }
+        html[data-theme="dark"] .announce-item .badge-target {
+          background: rgba(99, 102, 241, 0.22) !important;
+          color: #a5b4fc !important;
+        }
+        html[data-theme="dark"] .announce-item .badge-all {
+          background: rgba(16, 185, 129, 0.18) !important;
+          color: #6ee7b7 !important;
+        }
+        html[data-theme="dark"] .announce-item .badge-gift-days {
+          background: rgba(234, 88, 12, 0.22) !important;
+          color: #fdba74 !important;
+        }
+        html[data-theme="dark"] .announce-item .badge-gift-code {
+          background: rgba(59, 130, 246, 0.22) !important;
+          color: #93c5fd !important;
+        }
 
         /* Gift block — dark variant. Soft amber tint over a navy base so it
            still reads as "the gift section" without blinding the user. */
