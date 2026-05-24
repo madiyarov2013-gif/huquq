@@ -139,7 +139,6 @@ const AiAssistantPage: React.FC = () => {
     { id: 'limits' as const, label: 'Limitlar', icon: '📊' }
   ];
 
-  const aiReady = settings?.enabled && stats.keysActive > 0;
   const statusText = !settings
     ? 'Sozlamalar yuklanmoqda...'
     : !settings.enabled
