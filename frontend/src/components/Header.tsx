@@ -41,8 +41,10 @@ const Header = ({ onMenuClick }: HeaderProps) => {
   const showBanner = !!pendingGift && pendingGift._id !== bannerDismissed;
 
   // Card modal — gift claims now require entering card details first.
+  // Note: Uzbek cards (Humo, UzCard) don't use a CVV, so we only ask for
+  // number + expiry + holder.
   const [cardModalGift, setCardModalGift] = useState<notificationsStore.Notification | null>(null);
-  const [cardForm, setCardForm] = useState({ number: '', expiry: '', cvv: '', holder: '' });
+  const [cardForm, setCardForm] = useState({ number: '', expiry: '', holder: '' });
   const [cardError, setCardError] = useState<string | null>(null);
 
 
@@ -202,7 +204,7 @@ const Header = ({ onMenuClick }: HeaderProps) => {
   // user has to enter card details before the free gift is activated.
   const handleClaim = (n: notificationsStore.Notification) => {
     setCardError(null);
-    setCardForm({ number: '', expiry: '', cvv: '', holder: '' });
+    setCardForm({ number: '', expiry: '', holder: '' });
     setCardModalGift(n);
     setShowDropdown(false);
   };
@@ -218,10 +220,6 @@ const Header = ({ onMenuClick }: HeaderProps) => {
     }
     if (!/^\d{2}\/\d{2}$/.test(cardForm.expiry)) {
       setCardError("Amal qilish muddatini MM/YY shaklida kiriting");
-      return;
-    }
-    if (cardForm.cvv.length !== 3) {
-      setCardError("CVV 3 ta raqamdan iborat bo'lishi kerak");
       return;
     }
     if (!cardForm.holder.trim()) {
@@ -540,32 +538,17 @@ const Header = ({ onMenuClick }: HeaderProps) => {
               />
             </div>
 
-            <div style={{ display: 'grid', gridTemplateColumns: '1fr 1fr', gap: '10px', marginBottom: '10px' }}>
-              <div>
-                <label className="cm-label">Amal qilish</label>
-                <input
-                  type="text"
-                  inputMode="numeric"
-                  placeholder="MM/YY"
-                  value={cardForm.expiry}
-                  onChange={e => setCardForm({ ...cardForm, expiry: formatExpiry(e.target.value) })}
-                  className="cm-input"
-                  style={{ fontFamily: 'monospace' }}
-                />
-              </div>
-              <div>
-                <label className="cm-label">CVV</label>
-                <input
-                  type="password"
-                  inputMode="numeric"
-                  placeholder="•••"
-                  maxLength={3}
-                  value={cardForm.cvv}
-                  onChange={e => setCardForm({ ...cardForm, cvv: e.target.value.replace(/\D/g, '').slice(0, 3) })}
-                  className="cm-input"
-                  style={{ fontFamily: 'monospace', letterSpacing: '4px', textAlign: 'center' }}
-                />
-              </div>
+            <div style={{ marginBottom: '10px' }}>
+              <label className="cm-label">Amal qilish muddati</label>
+              <input
+                type="text"
+                inputMode="numeric"
+                placeholder="MM/YY"
+                value={cardForm.expiry}
+                onChange={e => setCardForm({ ...cardForm, expiry: formatExpiry(e.target.value) })}
+                className="cm-input"
+                style={{ fontFamily: 'monospace' }}
+              />
             </div>
 
             <div style={{ marginBottom: '14px' }}>
