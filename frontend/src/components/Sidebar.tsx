@@ -12,7 +12,8 @@ import {
   Bot,
   Crown,
   Lock,
-  Wallet
+  Wallet,
+  Megaphone
 } from 'lucide-react';
 
 interface NavItem {
@@ -58,6 +59,7 @@ const Sidebar = ({ isOpen = false, onClose }: SidebarProps) => {
         { path: '/admin?tab=ai', icon: <Bot size={20} />, label: 'AI sozlamalari', adminTab: 'ai' },
         { path: '/ai-assistant', icon: <Sparkles size={20} />, label: 'AI bilan suhbat' },
         { path: '/admin?tab=payments', icon: <Wallet size={20} />, label: "To'lovlar", adminTab: 'payments' },
+        { path: '/announcements', icon: <Megaphone size={20} />, label: "E'lon yuborish" },
         { path: '/profile', icon: <User size={20} />, label: 'Profil' },
         { path: '/settings', icon: <Settings size={20} />, label: 'Sozlamalar' },
       ]

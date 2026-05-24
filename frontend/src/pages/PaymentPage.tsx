@@ -1,6 +1,7 @@
 import React, { useState, useEffect } from 'react';
 import { useNavigate } from 'react-router-dom';
 import { recordPayment, cancelLocalPayment } from '../payments-store';
+import { findPromoCode } from '../notifications-store';
 import { Check, CreditCard, Lock, Shield, Sparkles, Crown, Bot, Calendar, X, Zap, Rocket } from 'lucide-react';
 
 type TierId = 'pro' | 'max';
@@ -98,6 +99,41 @@ const PaymentPage: React.FC = () => {
     holder: ''
   });
 
+  // Promo code state — admin-issued codes carry a discount %.
+  const [promoInput, setPromoInput] = useState('');
+  const [promoApplied, setPromoApplied] = useState<{ code: string; percent: number } | null>(null);
+  const [promoMsg, setPromoMsg] = useState<{ text: string; type: 'success' | 'error' } | null>(null);
+  const [promoChecking, setPromoChecking] = useState(false);
+
+  const handleApplyPromo = async () => {
+    const code = promoInput.trim();
+    if (!code) {
+      setPromoMsg({ text: "Avval promokodni kiriting", type: 'error' });
+      return;
+    }
+    setPromoChecking(true);
+    setPromoMsg(null);
+    try {
+      const match = await findPromoCode(code);
+      if (!match || !match.giftPercent) {
+        setPromoApplied(null);
+        setPromoMsg({ text: "Promokod topilmadi yoki amal qilmaydi", type: 'error' });
+      } else {
+        setPromoApplied({ code: match.giftCode || code, percent: match.giftPercent });
+        setPromoMsg({ text: `${match.giftPercent}% chegirma qo'llandi!`, type: 'success' });
+      }
+    } catch {
+      setPromoMsg({ text: "Tekshirishda xatolik", type: 'error' });
+    }
+    setPromoChecking(false);
+  };
+
+  const handleClearPromo = () => {
+    setPromoApplied(null);
+    setPromoInput('');
+    setPromoMsg(null);
+  };
+
   useEffect(() => {
     const sync = () => {
       setIsPaid(localStorage.getItem('huquq_user_paid') === 'true');
@@ -144,7 +180,9 @@ const PaymentPage: React.FC = () => {
     setTimeout(async () => {
       const duration = DURATIONS.find(d => d.id === selectedDuration)!;
       const tier = TIERS.find(t => t.id === selectedTier)!;
-      const amount = tier.prices[selectedDuration];
+      const basePrice = tier.prices[selectedDuration];
+      const discount = promoApplied ? Math.round(basePrice * promoApplied.percent / 100) : 0;
+      const amount = Math.max(0, basePrice - discount);
       const until = new Date();
       until.setMonth(until.getMonth() + duration.months);
 
@@ -317,7 +355,9 @@ const PaymentPage: React.FC = () => {
   // ===== Payment view =====
   const currentTier = TIERS.find(t => t.id === selectedTier)!;
   const currentDuration = DURATIONS.find(d => d.id === selectedDuration)!;
-  const currentPrice = currentTier.prices[selectedDuration];
+  const basePrice = currentTier.prices[selectedDuration];
+  const discountAmount = promoApplied ? Math.round(basePrice * promoApplied.percent / 100) : 0;
+  const currentPrice = Math.max(0, basePrice - discountAmount);
 
   return (
     <div style={{ padding: '20px', animation: 'fadeIn 0.3s ease-in-out' }}>
@@ -505,10 +545,96 @@ const PaymentPage: React.FC = () => {
               <span style={{ color: '#64748b', fontSize: '14px' }}>Davomiyligi</span>
               <span style={{ fontWeight: 600, color: '#0f172a' }}>{currentDuration.name}</span>
             </div>
-            <div style={{ display: 'flex', justifyContent: 'space-between', padding: '18px 0', marginBottom: '16px' }}>
-              <span style={{ fontWeight: 700, color: '#0f172a', fontSize: '15px' }}>Jami</span>
-              <span style={{ fontWeight: 800, color: currentTier.color, fontSize: '20px' }}>{formatPrice(currentPrice)}</span>
+
+            {/* Promo code input */}
+            <div style={{ padding: '14px 0', borderBottom: '1px dashed #e2e8f0' }}>
+              <div style={{ fontSize: '12px', fontWeight: 600, color: '#64748b', marginBottom: '6px', textTransform: 'uppercase', letterSpacing: '0.5px' }}>
+                Promokod
+              </div>
+              {promoApplied ? (
+                <div style={{
+                  display: 'flex', alignItems: 'center', justifyContent: 'space-between',
+                  background: 'linear-gradient(135deg, #ecfdf5 0%, #d1fae5 100%)',
+                  border: '1px solid #6ee7b7',
+                  padding: '10px 12px', borderRadius: '10px'
+                }}>
+                  <div>
+                    <div style={{ display: 'flex', alignItems: 'center', gap: '6px', fontWeight: 700, color: '#047857', fontSize: '13px', fontFamily: 'monospace' }}>
+                      <Check size={14} /> {promoApplied.code}
+                    </div>
+                    <div style={{ fontSize: '11.5px', color: '#047857', fontWeight: 600 }}>
+                      -{promoApplied.percent}% chegirma qo'llandi
+                    </div>
+                  </div>
+                  <button
+                    type="button"
+                    onClick={handleClearPromo}
+                    style={{ padding: '4px 8px', border: '1px solid #6ee7b7', background: '#fff', color: '#047857', borderRadius: '8px', fontSize: '11px', fontWeight: 700, cursor: 'pointer' }}
+                  >
+                    Bekor qilish
+                  </button>
+                </div>
+              ) : (
+                <div style={{ display: 'flex', gap: '6px' }}>
+                  <input
+                    type="text"
+                    value={promoInput}
+                    onChange={e => {
+                      setPromoInput(e.target.value);
+                      if (promoMsg?.type === 'error') setPromoMsg(null);
+                    }}
+                    onKeyDown={e => { if (e.key === 'Enter') { e.preventDefault(); handleApplyPromo(); } }}
+                    placeholder="PREMIUM50"
+                    style={{ flex: 1, padding: '10px 12px', borderRadius: '10px', border: '1px solid #cbd5e1', fontSize: '13px', outline: 'none', boxSizing: 'border-box', fontFamily: 'monospace', letterSpacing: '1px', textTransform: 'uppercase' }}
+                  />
+                  <button
+                    type="button"
+                    onClick={handleApplyPromo}
+                    disabled={promoChecking || !promoInput.trim()}
+                    style={{
+                      padding: '10px 16px', borderRadius: '10px', border: 'none',
+                      background: promoChecking || !promoInput.trim()
+                        ? '#cbd5e1'
+                        : 'linear-gradient(135deg, #4f46e5 0%, #7c3aed 100%)',
+                      color: '#fff', fontWeight: 700, fontSize: '12.5px',
+                      cursor: promoChecking || !promoInput.trim() ? 'not-allowed' : 'pointer'
+                    }}
+                  >
+                    {promoChecking ? '...' : "Qo'llash"}
+                  </button>
+                </div>
+              )}
+              {promoMsg && !promoApplied && (
+                <div style={{
+                  marginTop: '8px', fontSize: '12px', fontWeight: 600,
+                  color: promoMsg.type === 'error' ? '#b91c1c' : '#047857'
+                }}>
+                  {promoMsg.text}
+                </div>
+              )}
             </div>
+
+            {promoApplied ? (
+              <>
+                <div style={{ display: 'flex', justifyContent: 'space-between', padding: '10px 0 4px 0' }}>
+                  <span style={{ color: '#64748b', fontSize: '13px' }}>Asl narx</span>
+                  <span style={{ color: '#94a3b8', fontSize: '14px', textDecoration: 'line-through' }}>{formatPrice(basePrice)}</span>
+                </div>
+                <div style={{ display: 'flex', justifyContent: 'space-between', padding: '4px 0 10px 0' }}>
+                  <span style={{ color: '#16a34a', fontSize: '13px', fontWeight: 600 }}>Chegirma ({promoApplied.percent}%)</span>
+                  <span style={{ color: '#16a34a', fontSize: '14px', fontWeight: 700 }}>−{formatPrice(discountAmount)}</span>
+                </div>
+                <div style={{ display: 'flex', justifyContent: 'space-between', padding: '14px 0 18px 0', borderTop: '1px solid #e2e8f0' }}>
+                  <span style={{ fontWeight: 700, color: '#0f172a', fontSize: '15px' }}>To'lov qilinadi</span>
+                  <span style={{ fontWeight: 800, color: currentTier.color, fontSize: '22px' }}>{formatPrice(currentPrice)}</span>
+                </div>
+              </>
+            ) : (
+              <div style={{ display: 'flex', justifyContent: 'space-between', padding: '18px 0', marginBottom: '16px' }}>
+                <span style={{ fontWeight: 700, color: '#0f172a', fontSize: '15px' }}>Jami</span>
+                <span style={{ fontWeight: 800, color: currentTier.color, fontSize: '20px' }}>{formatPrice(currentPrice)}</span>
+              </div>
+            )}
 
             {!showCardForm ? (
               <button

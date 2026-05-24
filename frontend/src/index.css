@@ -2712,6 +2712,59 @@ html[data-theme="dark"] .quiz-option-btn.selected {
   border-color: #6366f1 !important;
 }
 
+/* Header search bar */
+html[data-theme="dark"] .search-bar {
+  background-color: #1e293b !important;
+  border-color: rgba(71, 85, 105, 0.5) !important;
+  box-shadow: inset 0 2px 4px rgba(0,0,0,0.3) !important;
+}
+html[data-theme="dark"] .search-bar input { color: #f1f5f9 !important; }
+html[data-theme="dark"] .search-bar input::placeholder { color: #64748b !important; }
+html[data-theme="dark"] .search-bar svg { color: #94a3b8 !important; }
+
+/* User profile pill (header) */
+html[data-theme="dark"] .user-profile {
+  background: #1e293b !important;
+  border-color: rgba(71, 85, 105, 0.5) !important;
+  color: #f1f5f9 !important;
+}
+html[data-theme="dark"] .user-profile:hover {
+  border-color: rgba(99, 102, 241, 0.5) !important;
+}
+
+/* "Sinflarni tanlash" and similar pill links — formerly hardcoded white */
+html[data-theme="dark"] .view-all-link {
+  background: #1e293b !important;
+  color: #a5b4fc !important;
+  border-color: rgba(71, 85, 105, 0.5) !important;
+}
+html[data-theme="dark"] .view-all-link:hover {
+  background: linear-gradient(135deg, #4f46e5 0%, #4338ca 100%) !important;
+  color: #fff !important;
+  border-color: transparent !important;
+}
+
+/* Info alert (homepage promo strip) */
+html[data-theme="dark"] .info-alert {
+  background: linear-gradient(to right, rgba(67, 56, 202, 0.18), rgba(30, 41, 59, 0.85)) !important;
+  border-color: rgba(99, 102, 241, 0.3) !important;
+}
+html[data-theme="dark"] .info-alert p { color: #e2e8f0 !important; }
+html[data-theme="dark"] .info-alert-icon {
+  background: #0f172a !important;
+  color: #a5b4fc !important;
+}
+html[data-theme="dark"] .info-alert-link {
+  background: #0f172a !important;
+  color: #a5b4fc !important;
+  border: 1px solid rgba(99, 102, 241, 0.4) !important;
+}
+html[data-theme="dark"] .info-alert-link:hover {
+  background: linear-gradient(135deg, #4f46e5 0%, #4338ca 100%) !important;
+  color: #fff !important;
+  border-color: transparent !important;
+}
+
 /* WalleBot — slightly boost glow in dark theme */
 html[data-theme="dark"] .walle-bot-body { filter: brightness(1.05) saturate(1.1); }
 html[data-theme="dark"] .walle-aura      { filter: blur(16px) brightness(1.15); }

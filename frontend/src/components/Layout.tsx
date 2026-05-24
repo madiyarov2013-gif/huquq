@@ -48,7 +48,7 @@ const Layout = () => {
   // Route protection for admins: redirect to /admin if accessing student-only pages
   useEffect(() => {
     if (isLoggedIn && isAdmin) {
-      const allowedAdminPaths = ['/admin', '/profile', '/settings', '/ai-assistant'];
+      const allowedAdminPaths = ['/admin', '/profile', '/settings', '/ai-assistant', '/announcements', '/users'];
       const currentPath = location.pathname;
       const isAllowed = allowedAdminPaths.some(path => currentPath === path || currentPath.startsWith(path + '/'));
 
@@ -64,6 +64,14 @@ const Layout = () => {
       navigate('/payment', { replace: true });
     }
   }, [isLoggedIn, isAdmin, isPaid, location.pathname, navigate]);
+
+  // /announcements and /users are admin-only; redirect non-admin users away.
+  useEffect(() => {
+    if (!isLoggedIn || isAdmin) return;
+    if (location.pathname.startsWith('/announcements') || location.pathname.startsWith('/users')) {
+      navigate('/', { replace: true });
+    }
+  }, [isLoggedIn, isAdmin, location.pathname, navigate]);
 
   if (!isLoggedIn) {
     return (

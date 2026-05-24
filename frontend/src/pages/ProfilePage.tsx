@@ -1,6 +1,7 @@
 import React, { useState, useRef } from 'react';
 import { User, Lock, Edit2, Save, X, Plus, Upload, LogOut, AtSign } from 'lucide-react';
 import { useNavigate } from 'react-router-dom';
+import { upsertUser } from '../users-store';
 
 const boyAvatars = [
   'https://api.dicebear.com/7.x/avataaars/svg?seed=Felix&backgroundColor=b6e3f4&mouth=smile&eyes=happy',
@@ -33,8 +34,17 @@ const ProfilePage = () => {
 
   const [isEditing, setIsEditing] = useState(false);
   const [avatarUrl, setAvatarUrl] = useState<string | null>(() => {
-    return localStorage.getItem(avatarKey()) || null;
+    const v = localStorage.getItem(avatarKey()) || null;
+    // Blob URLs (blob:http://…) don't survive a page reload — they were
+    // created in a previous session and are now dead. Drop them so we fall
+    // back to the default User icon instead of showing a broken image.
+    if (v && v.startsWith('blob:')) {
+      localStorage.removeItem(avatarKey());
+      return null;
+    }
+    return v;
   });
+  const [avatarBroken, setAvatarBroken] = useState<boolean>(false);
   
   const [showAvatarSelector, setShowAvatarSelector] = useState(false);
   const [avatarTab, setAvatarTab] = useState<'boys' | 'girls'>('boys');
@@ -81,7 +91,14 @@ const ProfilePage = () => {
         setIsLoggedIn(logged);
       }
       // Reload avatar matching the current account (user/admin have separate keys)
-      setAvatarUrl(localStorage.getItem(avatarKey()) || null);
+      const v = localStorage.getItem(avatarKey()) || null;
+      if (v && v.startsWith('blob:')) {
+        localStorage.removeItem(avatarKey());
+        setAvatarUrl(null);
+      } else {
+        setAvatarUrl(v);
+      }
+      setAvatarBroken(false);
     };
     window.addEventListener('huquq-auth-change', checkAuth);
     window.addEventListener('storage', checkAuth);
@@ -120,28 +137,39 @@ const ProfilePage = () => {
 
   const handleImageChange = (e: React.ChangeEvent<HTMLInputElement>) => {
     const file = e.target.files?.[0];
-    if (file) {
-      const imageUrl = URL.createObjectURL(file);
-      setAvatarUrl(imageUrl);
-      localStorage.setItem(avatarKey(), imageUrl);
+    if (!file) return;
+    // Read as base64 data URL so the avatar survives page reloads.
+    // (URL.createObjectURL produces a blob:… URL that dies with the page.)
+    const reader = new FileReader();
+    reader.onload = () => {
+      const dataUrl = String(reader.result || '');
+      if (!dataUrl) return;
+      setAvatarUrl(dataUrl);
+      setAvatarBroken(false);
+      try {
+        localStorage.setItem(avatarKey(), dataUrl);
+      } catch {
+        // localStorage may overflow on very large images — keep state but
+        // skip persistence in that case so the UI still updates.
+      }
       window.dispatchEvent(new Event('huquq-auth-change'));
       setShowAvatarSelector(false);
-    }
+    };
+    reader.readAsDataURL(file);
   };
 
   const selectDemoAvatar = (url: string) => {
     setAvatarUrl(url);
+    setAvatarBroken(false);
     localStorage.setItem(avatarKey(), url);
     window.dispatchEvent(new Event('huquq-auth-change'));
     setShowAvatarSelector(false);
   };
 
   const handleLogout = () => {
-    if (window.confirm("Haqiqatan ham profildan chiqmoqchimisiz?")) {
-      setIsLoggedIn(false);
-      localStorage.setItem('huquq_user_logged_in', 'false');
-      window.dispatchEvent(new Event('huquq-auth-change'));
-    }
+    setIsLoggedIn(false);
+    localStorage.setItem('huquq_user_logged_in', 'false');
+    window.dispatchEvent(new Event('huquq-auth-change'));
   };
 
   const handleLoginSubmit = (e: React.FormEvent) => {
@@ -182,6 +210,13 @@ const ProfilePage = () => {
       localStorage.setItem('huquq_user_profile', JSON.stringify(defaultProfile));
       localStorage.setItem('huquq_user_logged_in', 'true');
       localStorage.removeItem('huquq_admin_authed');
+      upsertUser({
+        firstName: defaultProfile.firstName,
+        lastName: defaultProfile.lastName,
+        login: defaultProfile.login,
+        paidTier: (localStorage.getItem('huquq_user_tier') as 'pro' | 'max') || undefined,
+        paidUntil: localStorage.getItem('huquq_user_paid_until') || undefined
+      });
       setFormData(defaultProfile);
       setIsLoggedIn(true);
       window.dispatchEvent(new Event('huquq-auth-change'));
@@ -205,6 +240,13 @@ const ProfilePage = () => {
         setFormData(profile);
         setIsLoggedIn(true);
         localStorage.setItem('huquq_user_logged_in', 'true');
+        upsertUser({
+          firstName: profile.firstName,
+          lastName: profile.lastName,
+          login: profile.login,
+          paidTier: (localStorage.getItem('huquq_user_tier') as 'pro' | 'max') || undefined,
+          paidUntil: localStorage.getItem('huquq_user_paid_until') || undefined
+        });
         window.dispatchEvent(new Event('huquq-auth-change'));
         setLoginUsername('');
         setLoginPassword('');
@@ -230,6 +272,12 @@ const ProfilePage = () => {
     // Save profile to localStorage but keep logged_in false
     localStorage.setItem('huquq_user_profile', JSON.stringify(registerData));
     localStorage.setItem('huquq_user_logged_in', 'false');
+    // Register the user in the central list so admin can see new sign-ups.
+    upsertUser({
+      firstName: registerData.firstName,
+      lastName: registerData.lastName,
+      login: registerData.login
+    });
     window.dispatchEvent(new Event('huquq-auth-change'));
 
     // Switch to login tab and prefill the login
@@ -538,8 +586,13 @@ const ProfilePage = () => {
               border: '2px solid #e2e8f0', overflow: 'hidden',
               boxShadow: '0 10px 25px -5px rgba(59, 130, 246, 0.1), 0 8px 10px -6px rgba(59, 130, 246, 0.1)' 
             }}>
-            {avatarUrl ? (
-              <img src={avatarUrl} alt="Profile Avatar" style={{ width: '100%', height: '100%', objectFit: 'cover' }} />
+            {avatarUrl && !avatarBroken ? (
+              <img
+                src={avatarUrl}
+                alt=""
+                onError={() => setAvatarBroken(true)}
+                style={{ width: '100%', height: '100%', objectFit: 'cover', display: 'block' }}
+              />
             ) : (
               <span style={{ fontSize: '80px', fontWeight: 'bold', color: '#3b82f6', letterSpacing: '4px' }}>
                 {(formData.firstName?.charAt(0) || '').toUpperCase()}{(formData.lastName?.charAt(0) || '').toUpperCase()}

@@ -9,6 +9,8 @@ import SettingsPage from './pages/SettingsPage';
 import TestsPage from './pages/TestsPage';
 import AdminPage from './pages/AdminPage';
 import PaymentPage from './pages/PaymentPage';
+import AnnouncementsPage from './pages/AnnouncementsPage';
+import UsersPage from './pages/UsersPage';
 
 function App() {
   return (
@@ -24,6 +26,8 @@ function App() {
           <Route path="settings" element={<SettingsPage />} />
           <Route path="tests/*" element={<TestsPage />} />
           <Route path="admin" element={<AdminPage />} />
+          <Route path="announcements" element={<AnnouncementsPage />} />
+          <Route path="users" element={<UsersPage />} />
           <Route path="payment" element={<PaymentPage />} />
           <Route path="*" element={<Navigate to="/" replace />} />
         </Route>

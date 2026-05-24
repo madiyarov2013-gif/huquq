@@ -375,6 +375,128 @@ const BookReader: React.FC<BookReaderProps> = ({ book, onClose }) => {
             height: 42px;
           }
         }
+
+        /* ============================================================
+           DARK MODE — kitob o'qish komponentini tungi rejimga moslash
+           ============================================================ */
+        html[data-theme="dark"] .reader-content-wrapper {
+          background: #0f172a;
+          border-color: rgba(71, 85, 105, 0.4);
+          box-shadow: inset 0 2px 10px rgba(0,0,0,0.5);
+        }
+
+        html[data-theme="dark"] .reader-paper {
+          background: #1e293b;
+          color: #e2e8f0;
+          box-shadow: 0 4px 20px rgba(0,0,0,0.4);
+        }
+
+        html[data-theme="dark"] .empty-page-placeholder {
+          color: #475569;
+        }
+
+        html[data-theme="dark"] .pagination-container {
+          background: #1e293b;
+          border-color: rgba(71, 85, 105, 0.5);
+          box-shadow: 0 4px 15px rgba(0,0,0,0.3);
+        }
+
+        html[data-theme="dark"] .page-btn {
+          background: #334155;
+          color: #cbd5e1;
+        }
+
+        html[data-theme="dark"] .page-btn:hover:not(:disabled) {
+          background: #6366f1;
+          color: #ffffff;
+        }
+
+        html[data-theme="dark"] .page-btn:disabled {
+          background: #1e293b;
+          color: #475569;
+        }
+
+        html[data-theme="dark"] .page-indicator .current { color: #a5b4fc; }
+        html[data-theme="dark"] .page-indicator .divider { color: #475569; }
+        html[data-theme="dark"] .page-indicator .total   { color: #94a3b8; }
+
+        /* Constitution text — dark variants */
+        html[data-theme="dark"] .constitution-section { color: #a5b4fc; }
+        html[data-theme="dark"] .constitution-chapter { color: #f1f5f9; }
+        html[data-theme="dark"] .constitution-article { color: #cbd5e1; }
+        html[data-theme="dark"] .article-number       { color: #f1f5f9; }
+        html[data-theme="dark"] .constitution-text    { color: #cbd5e1; }
+
+        /* Search form */
+        html[data-theme="dark"] .search-form {
+          background: #1e293b;
+          border-color: rgba(71, 85, 105, 0.5);
+          box-shadow: 0 2px 10px rgba(0,0,0,0.25);
+        }
+
+        html[data-theme="dark"] .search-form:focus-within {
+          border-color: #6366f1;
+          box-shadow: 0 4px 15px rgba(99, 102, 241, 0.25);
+        }
+
+        html[data-theme="dark"] .search-input {
+          color: #e2e8f0;
+        }
+
+        html[data-theme="dark"] .search-input::placeholder {
+          color: #64748b;
+        }
+
+        html[data-theme="dark"] .search-btn {
+          background: #334155;
+          color: #cbd5e1;
+        }
+
+        html[data-theme="dark"] .search-btn:hover {
+          background: #6366f1;
+          color: #ffffff;
+        }
+
+        /* Make raw HTML text inside book pages legible — many books use
+           inline color styles like color: #1e293b, color: #0f172a etc.
+           Override the common dark-on-light shades with light-on-dark
+           equivalents when the dark theme is active. */
+        html[data-theme="dark"] .reader-paper * {
+          color: inherit;
+        }
+        html[data-theme="dark"] .reader-paper [style*="color: #000"],
+        html[data-theme="dark"] .reader-paper [style*="color:#000"],
+        html[data-theme="dark"] .reader-paper [style*="color: #0f172a"],
+        html[data-theme="dark"] .reader-paper [style*="color:#0f172a"],
+        html[data-theme="dark"] .reader-paper [style*="color: #1e293b"],
+        html[data-theme="dark"] .reader-paper [style*="color:#1e293b"],
+        html[data-theme="dark"] .reader-paper [style*="color: #334155"],
+        html[data-theme="dark"] .reader-paper [style*="color:#334155"],
+        html[data-theme="dark"] .reader-paper [style*="color: #475569"],
+        html[data-theme="dark"] .reader-paper [style*="color:#475569"],
+        html[data-theme="dark"] .reader-paper [style*="color: rgb(15"],
+        html[data-theme="dark"] .reader-paper [style*="color: rgb(30"],
+        html[data-theme="dark"] .reader-paper [style*="color: rgb(51"] {
+          color: #e2e8f0 !important;
+        }
+
+        /* Override any inline white/cream backgrounds inside the book */
+        html[data-theme="dark"] .reader-paper [style*="background: #fff"],
+        html[data-theme="dark"] .reader-paper [style*="background:#fff"],
+        html[data-theme="dark"] .reader-paper [style*="background-color: #fff"],
+        html[data-theme="dark"] .reader-paper [style*="background-color:#fff"],
+        html[data-theme="dark"] .reader-paper [style*="background: #f8fafc"],
+        html[data-theme="dark"] .reader-paper [style*="background:#f8fafc"],
+        html[data-theme="dark"] .reader-paper [style*="background: #f1f5f9"],
+        html[data-theme="dark"] .reader-paper [style*="background:#f1f5f9"] {
+          background: #0f172a !important;
+        }
+
+        /* Search highlight stays readable in dark mode */
+        html[data-theme="dark"] .reader-paper mark {
+          background-color: #fde68a !important;
+          color: #0f172a !important;
+        }
       `}</style>
     </div>
   );
