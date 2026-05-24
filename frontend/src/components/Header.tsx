@@ -32,6 +32,13 @@ const Header = ({ onMenuClick }: HeaderProps) => {
   const dropdownRef = useRef<HTMLDivElement>(null);
 
   const unreadCount = notifs.filter(n => !readIds.has(n._id)).length;
+  // The most recent unread gift — used to render the big "you have a gift!"
+  // banner so users can't miss new gifts even with the bell closed.
+  const pendingGift = notifs.find(n =>
+    n.type === 'gift' && !readIds.has(n._id) && !claimedIds.has(n._id)
+  );
+  const [bannerDismissed, setBannerDismissed] = useState<string | null>(null);
+  const showBanner = !!pendingGift && pendingGift._id !== bannerDismissed;
 
   useEffect(() => {
     const loadUser = () => {
@@ -68,6 +75,10 @@ const Header = ({ onMenuClick }: HeaderProps) => {
       window.removeEventListener('storage', loadUser);
     };
   }, []);
+
+  // Ref-stored refresh so the bell click and the "Yangilash" button can
+  // force a fetch outside of the useEffect's setInterval / event loop.
+  const refreshRef = useRef<() => Promise<void>>(async () => {});
 
   // Load notifications, react to admin sending new ones, refresh on focus
   useEffect(() => {
@@ -123,21 +134,23 @@ const Header = ({ onMenuClick }: HeaderProps) => {
       setReadIds(currentReadIds);
       setClaimedIds(notificationsStore.getClaimedIds());
     };
+    refreshRef.current = refresh;
     refresh();
+    const onVisible = () => { if (document.visibilityState === 'visible') refresh(); };
     window.addEventListener('huquq-notifications-change', refresh);
     window.addEventListener('huquq-auth-change', refresh);
     window.addEventListener('storage', refresh);
     window.addEventListener('focus', refresh);
+    document.addEventListener('visibilitychange', onVisible);
     // Poll occasionally so cross-device backend updates show without focus.
-    // 8s is short enough that "send → arrive" feels close to instant in
-    // local testing without burning the device.
-    const id = setInterval(refresh, 8000);
+    const id = setInterval(refresh, 5000);
     return () => {
       cancelled = true;
       window.removeEventListener('huquq-notifications-change', refresh);
       window.removeEventListener('huquq-auth-change', refresh);
       window.removeEventListener('storage', refresh);
       window.removeEventListener('focus', refresh);
+      document.removeEventListener('visibilitychange', onVisible);
       clearInterval(id);
     };
   }, []);
@@ -159,13 +172,24 @@ const Header = ({ onMenuClick }: HeaderProps) => {
     setTimeout(() => setToast(null), 3500);
   };
 
-  const handleOpenDropdown = () => {
+  const handleOpenDropdown = async () => {
     const willShow = !showDropdown;
     setShowDropdown(willShow);
-    if (willShow && notifs.length > 0) {
-      notificationsStore.markAllRead(notifs.map(n => n._id));
-      setReadIds(notificationsStore.getReadIds());
+    if (willShow) {
+      // Force a fresh fetch so the dropdown never shows stale state, even
+      // if events somehow didn't reach this component instance.
+      await refreshRef.current();
+      // Mark whatever's now visible as read (count comes from current state).
+      if (notifs.length > 0) {
+        notificationsStore.markAllRead(notifs.map(n => n._id));
+        setReadIds(notificationsStore.getReadIds());
+      }
     }
+  };
+
+  const handleManualRefresh = async (e: React.MouseEvent) => {
+    e.stopPropagation();
+    await refreshRef.current();
   };
 
   const handleClaim = (n: notificationsStore.Notification) => {
@@ -248,9 +272,18 @@ const Header = ({ onMenuClick }: HeaderProps) => {
             }}>
               <div style={{ padding: '16px 18px', borderBottom: '1px solid #f1f5f9', display: 'flex', alignItems: 'center', justifyContent: 'space-between', position: 'sticky', top: 0, background: '#fff', zIndex: 2 }}>
                 <h4 style={{ margin: 0, fontSize: '15px', fontWeight: 700, color: '#0f172a' }}>Bildirishnomalar</h4>
-                <button onClick={() => setShowDropdown(false)} style={{ background: 'transparent', border: 'none', color: '#94a3b8', cursor: 'pointer', padding: '4px' }}>
-                  <X size={16} />
-                </button>
+                <div style={{ display: 'flex', gap: '6px', alignItems: 'center' }}>
+                  <button
+                    onClick={handleManualRefresh}
+                    title="Yangilash"
+                    style={{ background: '#eef2ff', border: '1px solid #c7d2fe', color: '#4338ca', cursor: 'pointer', padding: '4px 10px', borderRadius: '8px', fontSize: '11.5px', fontWeight: 700 }}
+                  >
+                    Yangilash
+                  </button>
+                  <button onClick={() => setShowDropdown(false)} style={{ background: 'transparent', border: 'none', color: '#94a3b8', cursor: 'pointer', padding: '4px' }}>
+                    <X size={16} />
+                  </button>
+                </div>
               </div>
 
               {notifs.length === 0 ? (
@@ -402,6 +435,54 @@ const Header = ({ onMenuClick }: HeaderProps) => {
         </div>
       )}
 
+      {showBanner && pendingGift && (
+        <div style={{
+          position: 'fixed', top: '90px', left: '50%', transform: 'translateX(-50%)',
+          background: 'linear-gradient(135deg, #f59e0b 0%, #ef4444 100%)',
+          color: '#fff', padding: '14px 22px', borderRadius: '16px',
+          boxShadow: '0 16px 36px rgba(239, 68, 68, 0.45)',
+          fontSize: '14px', fontWeight: 600, zIndex: 9998,
+          maxWidth: 'min(560px, 92vw)',
+          display: 'flex', alignItems: 'center', gap: '14px',
+          animation: 'bannerIn 0.45s cubic-bezier(0.34, 1.56, 0.64, 1)'
+        }}>
+          <Gift size={26} />
+          <div style={{ flex: 1, minWidth: 0 }}>
+            <div style={{ fontWeight: 800, fontSize: '15px', marginBottom: '2px' }}>
+              🎁 Sizga sovg'a keldi!
+            </div>
+            <div style={{ fontSize: '13px', opacity: 0.95, whiteSpace: 'nowrap', overflow: 'hidden', textOverflow: 'ellipsis' }}>
+              {pendingGift.title}
+            </div>
+          </div>
+          <button
+            onClick={() => {
+              setBannerDismissed(pendingGift._id);
+              setShowDropdown(true);
+              notificationsStore.markAllRead(notifs.map(n => n._id));
+              setReadIds(notificationsStore.getReadIds());
+            }}
+            style={{
+              padding: '8px 14px', borderRadius: '10px', border: 'none',
+              background: 'rgba(255, 255, 255, 0.95)', color: '#b91c1c',
+              fontWeight: 800, fontSize: '13px', cursor: 'pointer', flexShrink: 0
+            }}
+          >
+            Ko'rish
+          </button>
+          <button
+            onClick={() => setBannerDismissed(pendingGift._id)}
+            title="Yashirish"
+            style={{
+              padding: '6px', borderRadius: '8px', border: 'none',
+              background: 'transparent', color: '#fff', cursor: 'pointer', opacity: 0.85
+            }}
+          >
+            <X size={16} />
+          </button>
+        </div>
+      )}
+
       <style>{`
         @keyframes notifDropdownIn {
           from { opacity: 0; transform: translateY(-8px) scale(0.96); }
@@ -410,6 +491,10 @@ const Header = ({ onMenuClick }: HeaderProps) => {
         @keyframes toastIn {
           from { opacity: 0; transform: translate(-50%, 20px); }
           to   { opacity: 1; transform: translate(-50%, 0); }
+        }
+        @keyframes bannerIn {
+          from { opacity: 0; transform: translate(-50%, -30px) scale(0.9); }
+          to   { opacity: 1; transform: translate(-50%, 0) scale(1); }
         }
         @keyframes bellShake {
           0%, 100% { transform: rotate(0deg); }
