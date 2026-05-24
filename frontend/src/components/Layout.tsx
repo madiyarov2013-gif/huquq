@@ -96,7 +96,7 @@ const Layout = () => {
           <Outlet />
         </main>
       </div>
-      {(isAdmin || isPaid) && <WalleBot />}
+      <WalleBot />
     </div>
   );
 };

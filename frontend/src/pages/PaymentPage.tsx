@@ -1,6 +1,6 @@
 import React, { useState, useEffect } from 'react';
-import { apiUrl } from '../config';
 import { useNavigate } from 'react-router-dom';
+import { recordPayment, cancelLocalPayment } from '../payments-store';
 import { Check, CreditCard, Lock, Shield, Sparkles, Crown, Bot, Calendar, X, Zap, Rocket } from 'lucide-react';
 
 type TierId = 'pro' | 'max';
@@ -164,23 +164,20 @@ const PaymentPage: React.FC = () => {
 
       const cardLast4 = cardData.number.replace(/\D/g, '').slice(-4);
 
-      // Persist subscription on the backend (best-effort — local state still updates)
+      // Persist subscription — always saves locally (admin can see it even
+      // without a backend) and best-effort POSTs to backend if available.
       try {
-        await fetch(apiUrl('/api/subscriptions'), {
-          method: 'POST',
-          headers: { 'Content-Type': 'application/json' },
-          body: JSON.stringify({
-            userLogin,
-            userName,
-            tier: selectedTier,
-            duration: selectedDuration,
-            amount,
-            expiresAt: until.toISOString(),
-            cardLast4
-          })
+        await recordPayment({
+          userLogin,
+          userName,
+          tier: selectedTier,
+          duration: selectedDuration,
+          amount,
+          expiresAt: until.toISOString(),
+          cardLast4
         });
       } catch (e) {
-        console.error("Subscription save failed:", e);
+        console.error('Payment save failed:', e);
       }
 
       localStorage.setItem('huquq_user_paid', 'true');
@@ -200,6 +197,12 @@ const PaymentPage: React.FC = () => {
 
   const handleCancelSubscription = () => {
     if (!window.confirm("Premium obunani bekor qilmoqchimisiz? AI yordamchi qulflanadi.")) return;
+    let userLogin = 'anonymous';
+    try {
+      const savedProfile = localStorage.getItem('huquq_user_profile');
+      if (savedProfile) userLogin = JSON.parse(savedProfile).login || 'anonymous';
+    } catch { /* ignore */ }
+    cancelLocalPayment(userLogin);
     localStorage.removeItem('huquq_user_paid');
     localStorage.removeItem('huquq_user_paid_until');
     localStorage.removeItem('huquq_user_tier');

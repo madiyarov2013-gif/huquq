@@ -45,6 +45,24 @@ const AiAssistantPage: React.FC = () => {
     messagesEndRef.current?.scrollIntoView({ behavior: 'smooth' });
   }, [messages]);
 
+  // Pick up newly added API keys / settings changes from admin immediately —
+  // either via the same-tab `huquq-ai-change` event, cross-tab `storage`
+  // event, or when the tab regains focus.
+  useEffect(() => {
+    const refresh = () => {
+      setSettings(getAiSettings());
+      setStats(getAiStats());
+    };
+    window.addEventListener('huquq-ai-change', refresh);
+    window.addEventListener('storage', refresh);
+    window.addEventListener('focus', refresh);
+    return () => {
+      window.removeEventListener('huquq-ai-change', refresh);
+      window.removeEventListener('storage', refresh);
+      window.removeEventListener('focus', refresh);
+    };
+  }, []);
+
   const handleSend = async () => {
     if (!input.trim()) return;
     const userMsg: Message = {
@@ -178,14 +196,13 @@ const AiAssistantPage: React.FC = () => {
           <div className="ai-chat-input-bar">
             <textarea
               className="ai-chat-input"
-              placeholder={aiReady ? 'Savolingizni yozing...' : "AI hozircha mavjud emas..."}
+              placeholder="Savolingizni yozing..."
               value={input}
               onChange={e => setInput(e.target.value)}
               onKeyDown={handleKeyDown}
               rows={1}
-              disabled={!aiReady}
             />
-            <button className="ai-chat-send" onClick={handleSend} disabled={!input.trim() || !aiReady}>
+            <button className="ai-chat-send" onClick={handleSend} disabled={!input.trim()}>
               <svg width="20" height="20" viewBox="0 0 24 24" fill="none" stroke="currentColor" strokeWidth="2" strokeLinecap="round" strokeLinejoin="round">
                 <line x1="22" y1="2" x2="11" y2="13"></line>
                 <polygon points="22 2 15 22 11 13 2 9 22 2"></polygon>

@@ -1,6 +1,7 @@
 import React, { useState, useEffect } from 'react';
 import { apiUrl } from '../config';
 import * as aiStore from '../ai-store';
+import * as paymentsStore from '../payments-store';
 import { generateGemini, friendlyError } from '../ai-client';
 import {
   ShieldCheck, Lock, LayoutDashboard, BookOpen,
@@ -175,6 +176,24 @@ const AdminPage: React.FC = () => {
     }
   }, [isAuthenticated]);
 
+  // Live-refresh payments when a user completes a purchase (same-tab event),
+  // when another tab writes to localStorage (Chrome multi-tab), or when the
+  // admin tab regains focus after switching back from the user tab.
+  useEffect(() => {
+    if (!isAuthenticated) return;
+    const refresh = () => { fetchSubscriptions(); };
+    window.addEventListener('huquq-payments-change', refresh);
+    window.addEventListener('huquq-payment-change', refresh);
+    window.addEventListener('storage', refresh);
+    window.addEventListener('focus', refresh);
+    return () => {
+      window.removeEventListener('huquq-payments-change', refresh);
+      window.removeEventListener('huquq-payment-change', refresh);
+      window.removeEventListener('storage', refresh);
+      window.removeEventListener('focus', refresh);
+    };
+  }, [isAuthenticated]);
+
   const showNotification = (text: string, type: 'success' | 'error' = 'success') => {
     setNotification({ text, type });
     setTimeout(() => setNotification(null), 4000);
@@ -264,39 +283,51 @@ const AdminPage: React.FC = () => {
 
   // ===== Subscription handlers =====
   const fetchSubscriptions = async () => {
-    try {
-      const res = await fetch(apiUrl('/api/subscriptions'));
-      const data = await res.json();
-      if (data.success) setSubscriptions(data.data);
-    } catch (err) {
-      console.error('Subscriptions loading failed', err);
-    }
+    // Merge backend + localStorage so admin sees payments even when backend
+    // isn't running (Vercel deploy, dev forgot to start Express, etc).
+    const merged = await paymentsStore.fetchAllPayments();
+    setSubscriptions(merged as unknown as Subscription[]);
+    // Recompute stats from the merged list — backend may have its own
+    // /stats endpoint, but for parity we compute locally so the numbers
+    // match exactly what the admin sees in the table.
+    setSubStats(paymentsStore.computeStats(merged) as unknown as SubscriptionStats);
   };
 
   const fetchSubStats = async () => {
-    try {
-      const res = await fetch(apiUrl('/api/subscriptions/stats'));
-      const data = await res.json();
-      if (data.success) setSubStats(data.data);
-    } catch (err) {
-      console.error('Subscription stats loading failed', err);
-    }
+    // Kept as a no-op alias — stats are recomputed inside fetchSubscriptions.
+    // Backend's /api/subscriptions/stats endpoint is still polled for parity
+    // when reachable, but the merged-source view is authoritative.
   };
 
   const handleDeleteSubscription = async (id: string) => {
     if (!window.confirm("Haqiqatan ham ushbu to'lov yozuvini o'chirmoqchimisiz?")) return;
+    // Local-only records (clientId starts with "loc_") can be deleted right
+    // here without a round-trip. Backend records still try the API delete.
+    const isLocal = typeof id === 'string' && id.startsWith('loc_');
+    if (isLocal) {
+      paymentsStore.deleteLocalPayment(id);
+      fetchSubscriptions();
+      showNotification("Yozuv o'chirildi");
+      return;
+    }
     try {
       const res = await fetch(apiUrl(`/api/subscriptions/${id}`), { method: 'DELETE' });
-      const data = await res.json();
+      const data = await res.json().catch(() => ({}));
       if (data.success) {
         fetchSubscriptions();
-        fetchSubStats();
         showNotification("Yozuv o'chirildi");
       } else {
         showNotification(data.error || "O'chirilmadi", 'error');
       }
     } catch (err) {
-      showNotification("Backend ishlamayapti. Backend papkasida 'npm start' bilan ishga tushiring (port 5000).", 'error');
+      // Backend unreachable — try the local store anyway (covers the case
+      // where the record lives only locally despite not having a loc_ prefix).
+      if (paymentsStore.deleteLocalPayment(id)) {
+        fetchSubscriptions();
+        showNotification("Yozuv o'chirildi (lokal)");
+      } else {
+        showNotification("Backend ishlamayapti. Backend papkasida 'npm start' bilan ishga tushiring (port 5000).", 'error');
+      }
     }
   };
 

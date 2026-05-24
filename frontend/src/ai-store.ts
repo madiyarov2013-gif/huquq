@@ -61,8 +61,21 @@ export const getAiSettings = (): AiSettings => {
   }
 };
 
+// Tab-local broadcaster: storage events only fire in *other* tabs, so we
+// also dispatch a custom event for same-tab listeners (e.g. admin → admin's
+// embedded chat preview, or AI page reacting to settings saves done in the
+// same SPA without a reload).
+const notifyAiChange = (): void => {
+  try {
+    window.dispatchEvent(new Event('huquq-ai-change'));
+  } catch {
+    /* SSR / non-browser */
+  }
+};
+
 export const setAiSettings = (s: AiSettings): void => {
   localStorage.setItem(SETTINGS_KEY, JSON.stringify(s));
+  notifyAiChange();
 };
 
 const readKeys = (): AiKey[] => {
@@ -77,6 +90,7 @@ const readKeys = (): AiKey[] => {
 };
 const writeKeys = (arr: AiKey[]): void => {
   localStorage.setItem(KEYS_KEY, JSON.stringify(arr));
+  notifyAiChange();
 };
 
 // Refresh per-day counters: reset `used` if the date rolled over.
@@ -123,6 +137,12 @@ export const createAiKey = (input: {
   const arr = readKeys();
   arr.push(k);
   writeKeys(arr);
+  // Auto-enable AI when the first/any key is added, so the chat doesn't
+  // appear "off" right after the user finishes adding their API key.
+  const current = getAiSettings();
+  if (!current.enabled) {
+    setAiSettings({ ...current, enabled: true });
+  }
   return k;
 };
 
