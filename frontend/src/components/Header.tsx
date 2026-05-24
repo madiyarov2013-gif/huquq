@@ -40,27 +40,6 @@ const Header = ({ onMenuClick }: HeaderProps) => {
   const [bannerDismissed, setBannerDismissed] = useState<string | null>(null);
   const showBanner = !!pendingGift && pendingGift._id !== bannerDismissed;
 
-  // Tiny debug bar so we can see whether notifications reach this Header
-  // instance at all. Toggle with localStorage.setItem('huquq_debug', '1').
-  const debugOn =
-    typeof window !== 'undefined' && localStorage.getItem('huquq_debug') === '1';
-  const debugInfo = (() => {
-    let rawNotifs: any[] = [];
-    try {
-      rawNotifs = JSON.parse(localStorage.getItem('huquq_notifications_v1') || '[]');
-    } catch { /* ignore */ }
-    let profileLogin = '?';
-    try {
-      profileLogin = JSON.parse(localStorage.getItem('huquq_user_profile') || '{}').login || '(empty)';
-    } catch { /* ignore */ }
-    return {
-      profileLogin,
-      adminAuthed: localStorage.getItem('huquq_admin_authed') === 'true',
-      totalInStorage: rawNotifs.length,
-      visibleNow: notifs.length,
-      unread: unreadCount
-    };
-  })();
 
   useEffect(() => {
     const loadUser = () => {
@@ -235,32 +214,6 @@ const Header = ({ onMenuClick }: HeaderProps) => {
   };
 
   return (
-    <>
-    {debugOn && (
-      <div style={{
-        position: 'fixed', top: '0', left: '0', right: '0', zIndex: 99999,
-        background: '#0f172a', color: '#a5f3fc',
-        fontFamily: 'monospace', fontSize: '11px', padding: '4px 12px',
-        borderBottom: '2px solid #06b6d4', textAlign: 'center'
-      }}>
-        🔎 login=<b>{debugInfo.profileLogin}</b> · admin=<b>{String(debugInfo.adminAuthed)}</b>
-        {' '}· storage=<b>{debugInfo.totalInStorage}</b> · visible=<b>{debugInfo.visibleNow}</b>
-        {' '}· unread=<b>{debugInfo.unread}</b>
-        {' '}
-        <button
-          onClick={() => { refreshRef.current(); }}
-          style={{ marginLeft: '8px', padding: '1px 8px', borderRadius: '4px', background: '#06b6d4', color: '#0f172a', border: 'none', fontWeight: 700, cursor: 'pointer' }}
-        >
-          force refresh
-        </button>
-        <button
-          onClick={() => { localStorage.removeItem('huquq_debug'); location.reload(); }}
-          style={{ marginLeft: '6px', padding: '1px 8px', borderRadius: '4px', background: '#334155', color: '#cbd5e1', border: 'none', cursor: 'pointer' }}
-        >
-          ✕
-        </button>
-      </div>
-    )}
     <header className="top-header" style={isAdmin ? { background: 'rgba(30, 27, 75, 0.05)', borderBottom: '1px solid #4338ca' } : undefined}>
       <div className="header-left">
         <button className="menu-toggle" onClick={onMenuClick} aria-label="Menyu">
@@ -581,7 +534,6 @@ const Header = ({ onMenuClick }: HeaderProps) => {
         html[data-theme="dark"] .notif-item span[style*="color: rgb(15"] { color: #f1f5f9 !important; }
       `}</style>
     </header>
-    </>
   );
 };
 
