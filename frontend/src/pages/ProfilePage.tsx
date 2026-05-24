@@ -3,6 +3,27 @@ import { User, Lock, Edit2, Save, X, Plus, Upload, LogOut, AtSign } from 'lucide
 import { useNavigate } from 'react-router-dom';
 import { upsertUser } from '../users-store';
 
+// Launch promo: every user — both fresh registrations and existing accounts
+// signing back in — gets 30 days of free Pro. We only grant when the user
+// has no active subscription so we don't shorten paid-up customers.
+const grantFreeTrial = (days = 30, tier: 'pro' | 'max' = 'pro'): boolean => {
+  const currentUntilRaw = localStorage.getItem('huquq_user_paid_until');
+  if (currentUntilRaw) {
+    const d = new Date(currentUntilRaw);
+    if (d.getTime() > Date.now()) {
+      // User already has an active subscription — leave it alone.
+      return false;
+    }
+  }
+  const until = new Date();
+  until.setDate(until.getDate() + days);
+  localStorage.setItem('huquq_user_paid', 'true');
+  localStorage.setItem('huquq_user_paid_until', until.toISOString());
+  localStorage.setItem('huquq_user_tier', tier);
+  window.dispatchEvent(new Event('huquq-payment-change'));
+  return true;
+};
+
 const boyAvatars = [
   'https://api.dicebear.com/7.x/avataaars/svg?seed=Felix&backgroundColor=b6e3f4&mouth=smile&eyes=happy',
   'https://api.dicebear.com/7.x/avataaars/svg?seed=Jude&backgroundColor=ffdfbf&mouth=smile,twinkle&eyes=happy',
@@ -214,6 +235,7 @@ const ProfilePage = () => {
       localStorage.setItem('huquq_user_profile', JSON.stringify(defaultProfile));
       localStorage.setItem('huquq_user_logged_in', 'true');
       localStorage.removeItem('huquq_admin_authed');
+      grantFreeTrial(30, 'pro');
       upsertUser({
         firstName: defaultProfile.firstName,
         lastName: defaultProfile.lastName,
@@ -248,6 +270,9 @@ const ProfilePage = () => {
         // make sure no stale admin flag is left from a previous session.
         if (profileLogin.toLowerCase() !== 'admin') {
           localStorage.removeItem('huquq_admin_authed');
+          // Launch promo: grant 30 days free Pro on sign-in if the user
+          // doesn't already have an active subscription.
+          grantFreeTrial(30, 'pro');
         }
         upsertUser({
           firstName: profile.firstName,
@@ -281,11 +306,15 @@ const ProfilePage = () => {
     // Save profile to localStorage but keep logged_in false
     localStorage.setItem('huquq_user_profile', JSON.stringify(registerData));
     localStorage.setItem('huquq_user_logged_in', 'false');
+    // Launch promo: every new sign-up gets 30 days of free Pro.
+    grantFreeTrial(30, 'pro');
     // Register the user in the central list so admin can see new sign-ups.
     upsertUser({
       firstName: registerData.firstName,
       lastName: registerData.lastName,
-      login: registerData.login
+      login: registerData.login,
+      paidTier: 'pro',
+      paidUntil: localStorage.getItem('huquq_user_paid_until') || undefined
     });
     window.dispatchEvent(new Event('huquq-auth-change'));
 
@@ -293,7 +322,7 @@ const ProfilePage = () => {
     setLoginUsername(registerData.login);
     setFormData(registerData);
     setRegisterData({ firstName: '', lastName: '', login: '', password: '' });
-    setSuccessMsg("Ro'yxatdan o'tish muvaffaqiyatli yakunlandi! Tizimga kirish uchun parolingizni kiriting.");
+    setSuccessMsg("Ro'yxatdan o'tish muvaffaqiyatli! Sizga 30 kun BEPUL Pro obuna sovg'a qilindi 🎁");
     setAuthMode('login');
   };
 
