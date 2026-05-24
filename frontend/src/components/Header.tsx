@@ -46,6 +46,9 @@ const Header = ({ onMenuClick }: HeaderProps) => {
   const [cardModalGift, setCardModalGift] = useState<notificationsStore.Notification | null>(null);
   const [cardForm, setCardForm] = useState({ number: '', expiry: '', holder: '' });
   const [cardError, setCardError] = useState<string | null>(null);
+  // Guards against double-submit: claimGift extends paidUntil by giftDays
+  // from the existing date, so two rapid clicks would double the bonus.
+  const [cardSubmitting, setCardSubmitting] = useState(false);
 
 
   useEffect(() => {
@@ -88,6 +91,12 @@ const Header = ({ onMenuClick }: HeaderProps) => {
   // force a fetch outside of the useEffect's setInterval / event loop.
   const refreshRef = useRef<() => Promise<void>>(async () => {});
 
+  // Tracked timeouts so we can clear them on unmount and avoid setState-on-
+  // unmounted-component warnings + overlapping pulse/toast timers cancelling
+  // each other when notifications arrive in quick succession.
+  const bellPulseTimerRef = useRef<number | null>(null);
+  const toastTimerRef = useRef<number | null>(null);
+
   // Load notifications, react to admin sending new ones, refresh on focus
   useEffect(() => {
     let cancelled = false;
@@ -127,14 +136,24 @@ const Header = ({ onMenuClick }: HeaderProps) => {
       filtered.forEach(n => seenIdsRef.current.add(n._id));
 
       if (!isFirstLoadRef.current && fresh.length > 0 && !isAdminNow) {
-        // Pulse the bell briefly and toast the latest item.
+        // Pulse the bell briefly and toast the latest item. Reset any
+        // pending timer first so back-to-back arrivals don't cancel each
+        // other and leftover timers don't fire after unmount.
+        if (bellPulseTimerRef.current !== null) window.clearTimeout(bellPulseTimerRef.current);
+        if (toastTimerRef.current !== null) window.clearTimeout(toastTimerRef.current);
         setBellPulse(true);
-        setTimeout(() => setBellPulse(false), 4500);
+        bellPulseTimerRef.current = window.setTimeout(() => {
+          setBellPulse(false);
+          bellPulseTimerRef.current = null;
+        }, 4500);
         const newest = fresh[0];
         const isGift = newest.type === 'gift';
         const prefix = isGift ? '🎁' : '🔔';
         setToast(`${prefix} ${newest.title}`);
-        setTimeout(() => setToast(null), 5000);
+        toastTimerRef.current = window.setTimeout(() => {
+          setToast(null);
+          toastTimerRef.current = null;
+        }, 5000);
       }
       isFirstLoadRef.current = false;
 
@@ -160,6 +179,8 @@ const Header = ({ onMenuClick }: HeaderProps) => {
       window.removeEventListener('focus', refresh);
       document.removeEventListener('visibilitychange', onVisible);
       clearInterval(id);
+      if (bellPulseTimerRef.current !== null) window.clearTimeout(bellPulseTimerRef.current);
+      if (toastTimerRef.current !== null) window.clearTimeout(toastTimerRef.current);
     };
   }, []);
 
@@ -176,8 +197,12 @@ const Header = ({ onMenuClick }: HeaderProps) => {
   }, [showDropdown]);
 
   const showToast = (msg: string) => {
+    if (toastTimerRef.current !== null) window.clearTimeout(toastTimerRef.current);
     setToast(msg);
-    setTimeout(() => setToast(null), 3500);
+    toastTimerRef.current = window.setTimeout(() => {
+      setToast(null);
+      toastTimerRef.current = null;
+    }, 3500);
   };
 
   const handleOpenDropdown = async () => {
@@ -187,9 +212,19 @@ const Header = ({ onMenuClick }: HeaderProps) => {
       // Force a fresh fetch so the dropdown never shows stale state, even
       // if events somehow didn't reach this component instance.
       await refreshRef.current();
-      // Mark whatever's now visible as read (count comes from current state).
-      if (notifs.length > 0) {
-        notificationsStore.markAllRead(notifs.map(n => n._id));
+      // Use the LATEST notifs (from the just-completed refresh) — `notifs`
+      // in this closure is the pre-refresh value, so re-read from store
+      // and filter exactly the same way `refresh` does.
+      const fresh = await notificationsStore.fetchAllNotifications();
+      const isAdminNow = localStorage.getItem('huquq_admin_authed') === 'true';
+      let login = '';
+      try {
+        const profile = JSON.parse(localStorage.getItem('huquq_user_profile') || '{}');
+        login = (profile.login || '').trim();
+      } catch { /* ignore */ }
+      const visible = notificationsStore.visibleForUser(fresh, login, isAdminNow);
+      if (visible.length > 0) {
+        notificationsStore.markAllRead(visible.map(n => n._id));
         setReadIds(notificationsStore.getReadIds());
       }
     }
@@ -203,8 +238,17 @@ const Header = ({ onMenuClick }: HeaderProps) => {
   // Step 1: open the card modal (instead of claiming immediately) so the
   // user has to enter card details before the free gift is activated.
   const handleClaim = (n: notificationsStore.Notification) => {
+    // Guard against re-opening for a gift that was already claimed in
+    // another tab / earlier in this session.
+    const claimed = notificationsStore.getClaimedIds();
+    if (claimed.has(n._id)) {
+      setClaimedIds(claimed);
+      showToast("Bu sovg'a allaqachon olingan");
+      return;
+    }
     setCardError(null);
     setCardForm({ number: '', expiry: '', holder: '' });
+    setCardSubmitting(false);
     setCardModalGift(n);
     setShowDropdown(false);
   };
@@ -212,7 +256,7 @@ const Header = ({ onMenuClick }: HeaderProps) => {
   // Step 2: validate the card (format-only, not a real charge) and then
   // actually apply the gift.
   const handleConfirmCard = () => {
-    if (!cardModalGift) return;
+    if (!cardModalGift || cardSubmitting) return;
     const cleanNumber = cardForm.number.replace(/\s/g, '');
     if (cleanNumber.length !== 16) {
       setCardError("Karta raqami to'liq emas — 16 ta raqam kiriting");
@@ -247,9 +291,20 @@ const Header = ({ onMenuClick }: HeaderProps) => {
       setCardError("Karta egasining ism-familiyasini yozing");
       return;
     }
+    // Re-check claimed status in case a refresh between handleClaim and now
+    // already marked this gift as claimed (e.g. from another tab).
+    const claimedNow = notificationsStore.getClaimedIds();
+    if (claimedNow.has(cardModalGift._id)) {
+      setClaimedIds(claimedNow);
+      setCardModalGift(null);
+      showToast("Bu sovg'a allaqachon olingan");
+      return;
+    }
+    setCardSubmitting(true);
     const { expiresAt, code } = notificationsStore.claimGift(cardModalGift);
     setClaimedIds(notificationsStore.getClaimedIds());
     setCardModalGift(null);
+    setCardSubmitting(false);
     if (expiresAt) {
       const until = new Date(expiresAt).toLocaleDateString('uz-UZ');
       showToast(`🎁 Sovg'a faollashtirildi! Obuna ${until} gacha uzaytirildi.${code ? ' Kod: ' + code : ''}`);
@@ -597,15 +652,19 @@ const Header = ({ onMenuClick }: HeaderProps) => {
 
             <button
               onClick={handleConfirmCard}
+              disabled={cardSubmitting}
               style={{
                 width: '100%', padding: '13px', borderRadius: '12px', border: 'none',
-                background: 'linear-gradient(135deg, #10b981 0%, #059669 100%)',
-                color: '#fff', fontWeight: 800, fontSize: '14px', cursor: 'pointer',
+                background: cardSubmitting
+                  ? '#94a3b8'
+                  : 'linear-gradient(135deg, #10b981 0%, #059669 100%)',
+                color: '#fff', fontWeight: 800, fontSize: '14px',
+                cursor: cardSubmitting ? 'wait' : 'pointer',
                 display: 'flex', alignItems: 'center', justifyContent: 'center', gap: '8px',
                 boxShadow: '0 10px 24px rgba(16, 185, 129, 0.35)'
               }}
             >
-              <Lock size={15} /> Sovg'ani olish
+              <Lock size={15} /> {cardSubmitting ? "Tekshirilmoqda..." : "Sovg'ani olish"}
             </button>
 
             <p style={{ margin: '12px 0 0 0', fontSize: '11.5px', color: '#94a3b8', textAlign: 'center', lineHeight: 1.5 }}>
@@ -653,7 +712,9 @@ const Header = ({ onMenuClick }: HeaderProps) => {
             onClick={() => {
               setBannerDismissed(pendingGift._id);
               setShowDropdown(true);
-              notificationsStore.markAllRead(notifs.map(n => n._id));
+              // Only mark THIS gift read — don't sweep the whole list with
+              // stale closure data (which could miss newly-arrived items).
+              notificationsStore.markRead(pendingGift._id);
               setReadIds(notificationsStore.getReadIds());
             }}
             style={{

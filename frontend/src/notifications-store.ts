@@ -135,9 +135,14 @@ export const createNotification = async (input: {
     .map(s => s.trim())
     .filter(Boolean);
   const code = input.giftCode ? input.giftCode.trim() : undefined;
-  const pct = code && input.giftPercent && input.giftPercent > 0
-    ? Math.min(100, Math.max(0, Math.round(input.giftPercent)))
-    : undefined;
+  // Round first, then clamp, then nullify if it lands at 0 — this way a
+  // 0.4% input becomes 0 and is dropped explicitly rather than silently
+  // surviving as `0` (which findPromoCode then filters out anyway).
+  let pct: number | undefined;
+  if (code && typeof input.giftPercent === 'number' && input.giftPercent > 0) {
+    const rounded = Math.min(100, Math.max(0, Math.round(input.giftPercent)));
+    pct = rounded > 0 ? rounded : undefined;
+  }
   const n: Notification = {
     _id: newId(),
     title: input.title.trim(),
@@ -193,13 +198,31 @@ export const fetchBackendNotifications = async (): Promise<Notification[]> => {
 
 // Merged read for both admin (sees all) and user (sees same — admin filter
 // can be added later if needed).
+//
+// Dedupe by BOTH _id and clientId: when the local notification gets POSTed
+// to the backend, the server typically assigns its own _id, so the same
+// logical notification has different `_id` values across sources. We pass
+// `clientId: localId` on POST, and the backend echoes it (or our merge
+// uses (createdAt + title + createdBy) as a last-resort signature).
 export const fetchAllNotifications = async (): Promise<Notification[]> => {
   const [backend, local] = await Promise.all([
     fetchBackendNotifications(),
     Promise.resolve(getLocalNotifications())
   ]);
-  const seen = new Set(backend.map(n => n._id));
-  const localOnly = local.filter(n => !seen.has(n._id));
+  const sig = (n: Notification) =>
+    `${n.createdAt}|${n.title}|${n.createdBy || ''}|${n.giftCode || ''}`;
+  const seenIds = new Set<string>();
+  const seenClient = new Set<string>();
+  const seenSig = new Set<string>();
+  for (const n of backend) {
+    seenIds.add(n._id);
+    const c = (n as any).clientId;
+    if (c) seenClient.add(c);
+    seenSig.add(sig(n));
+  }
+  const localOnly = local.filter(n =>
+    !seenIds.has(n._id) && !seenClient.has(n._id) && !seenSig.has(sig(n))
+  );
   return [...backend, ...localOnly].sort(
     (a, b) => new Date(b.createdAt).getTime() - new Date(a.createdAt).getTime()
   );

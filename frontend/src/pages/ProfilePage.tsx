@@ -3,25 +3,82 @@ import { User, Lock, Edit2, Save, X, Plus, Upload, LogOut, AtSign } from 'lucide
 import { useNavigate } from 'react-router-dom';
 import { upsertUser } from '../users-store';
 
-// Launch promo: every user — both fresh registrations and existing accounts
-// signing back in — gets 30 days of free Pro. We only grant when the user
-// has no active subscription so we don't shorten paid-up customers.
-const grantFreeTrial = (days = 30, tier: 'pro' | 'max' = 'pro'): boolean => {
+// Launch promo: every user gets 30 days of free Pro on their FIRST login or
+// registration. We track per-login that the trial was granted so cancelled
+// users can't re-grant indefinitely. Returns the actual tier the user ends
+// up on, so callers can write the right value to the users-store.
+const TRIAL_FLAG_KEY = 'huquq_trial_granted_logins_v1';
+
+const safeSet = (k: string, v: string): boolean => {
+  try { localStorage.setItem(k, v); return true; } catch { return false; }
+};
+
+const wasTrialGrantedFor = (login: string): boolean => {
+  try {
+    const raw = localStorage.getItem(TRIAL_FLAG_KEY);
+    const arr = raw ? JSON.parse(raw) : [];
+    return Array.isArray(arr) && arr.includes(login.toLowerCase());
+  } catch { return false; }
+};
+
+const markTrialGrantedFor = (login: string): void => {
+  try {
+    const raw = localStorage.getItem(TRIAL_FLAG_KEY);
+    const arr = raw ? JSON.parse(raw) : [];
+    const set = new Set(Array.isArray(arr) ? arr : []);
+    set.add(login.toLowerCase());
+    localStorage.setItem(TRIAL_FLAG_KEY, JSON.stringify(Array.from(set)));
+  } catch { /* ignore quota */ }
+};
+
+const grantFreeTrial = (
+  login: string,
+  days = 30,
+  tier: 'pro' | 'max' = 'pro'
+): { granted: boolean; tier: 'pro' | 'max'; paidUntil: string | undefined } => {
+  // 1. If the user already had a trial granted on this device, never re-grant.
+  if (login && wasTrialGrantedFor(login)) {
+    return {
+      granted: false,
+      tier: (localStorage.getItem('huquq_user_tier') as 'pro' | 'max') || tier,
+      paidUntil: localStorage.getItem('huquq_user_paid_until') || undefined
+    };
+  }
+  // 2. If there's an active subscription, preserve it as-is.
   const currentUntilRaw = localStorage.getItem('huquq_user_paid_until');
   if (currentUntilRaw) {
     const d = new Date(currentUntilRaw);
-    if (d.getTime() > Date.now()) {
-      // User already has an active subscription — leave it alone.
-      return false;
+    if (!isNaN(d.getTime()) && d.getTime() > Date.now()) {
+      return {
+        granted: false,
+        tier: (localStorage.getItem('huquq_user_tier') as 'pro' | 'max') || tier,
+        paidUntil: currentUntilRaw
+      };
     }
   }
+  // 3. Grant a fresh trial.
   const until = new Date();
   until.setDate(until.getDate() + days);
-  localStorage.setItem('huquq_user_paid', 'true');
-  localStorage.setItem('huquq_user_paid_until', until.toISOString());
-  localStorage.setItem('huquq_user_tier', tier);
-  window.dispatchEvent(new Event('huquq-payment-change'));
-  return true;
+  const iso = until.toISOString();
+  safeSet('huquq_user_paid', 'true');
+  safeSet('huquq_user_paid_until', iso);
+  safeSet('huquq_user_tier', tier);
+  if (login) markTrialGrantedFor(login);
+  try { window.dispatchEvent(new Event('huquq-payment-change')); } catch { /* SSR */ }
+  return { granted: true, tier, paidUntil: iso };
+};
+
+// Wipe any per-user subscription/profile state so the NEXT account on the
+// same browser starts from a clean slate. Called from handleLogout.
+const clearUserSession = (): void => {
+  try {
+    localStorage.removeItem('huquq_admin_authed');
+    localStorage.removeItem('huquq_user_profile');
+    localStorage.removeItem('huquq_user_paid');
+    localStorage.removeItem('huquq_user_paid_until');
+    localStorage.removeItem('huquq_user_tier');
+    localStorage.removeItem('huquq_user_avatar');
+  } catch { /* ignore */ }
 };
 
 const boyAvatars = [
@@ -190,11 +247,12 @@ const ProfilePage = () => {
   const handleLogout = () => {
     setIsLoggedIn(false);
     localStorage.setItem('huquq_user_logged_in', 'false');
-    // Clear admin flag too — otherwise after admin logs out from the profile
-    // page, `huquq_admin_authed` lingers and the next user is mis-detected as
-    // admin (hides the bell, blocks notifications).
-    localStorage.removeItem('huquq_admin_authed');
+    // Wipe subscription + profile state so the next account on this browser
+    // doesn't inherit anything (otherwise grantFreeTrial sees a stale
+    // paidUntil and silently denies the trial / mis-attributes paid days).
+    clearUserSession();
     window.dispatchEvent(new Event('huquq-auth-change'));
+    window.dispatchEvent(new Event('huquq-payment-change'));
   };
 
   const handleLoginSubmit = (e: React.FormEvent) => {
@@ -235,13 +293,13 @@ const ProfilePage = () => {
       localStorage.setItem('huquq_user_profile', JSON.stringify(defaultProfile));
       localStorage.setItem('huquq_user_logged_in', 'true');
       localStorage.removeItem('huquq_admin_authed');
-      grantFreeTrial(30, 'pro');
+      const trial = grantFreeTrial(defaultProfile.login, 30, 'pro');
       upsertUser({
         firstName: defaultProfile.firstName,
         lastName: defaultProfile.lastName,
         login: defaultProfile.login,
-        paidTier: (localStorage.getItem('huquq_user_tier') as 'pro' | 'max') || undefined,
-        paidUntil: localStorage.getItem('huquq_user_paid_until') || undefined
+        paidTier: trial.tier,
+        paidUntil: trial.paidUntil
       });
       setFormData(defaultProfile);
       setIsLoggedIn(true);
@@ -268,18 +326,23 @@ const ProfilePage = () => {
         localStorage.setItem('huquq_user_logged_in', 'true');
         // If the profile we just logged into is not the admin shortcut,
         // make sure no stale admin flag is left from a previous session.
+        let userTier: 'pro' | 'max' | undefined;
+        let userPaidUntil: string | undefined;
         if (profileLogin.toLowerCase() !== 'admin') {
           localStorage.removeItem('huquq_admin_authed');
-          // Launch promo: grant 30 days free Pro on sign-in if the user
-          // doesn't already have an active subscription.
-          grantFreeTrial(30, 'pro');
+          const trial = grantFreeTrial(profileLogin, 30, 'pro');
+          userTier = trial.tier;
+          userPaidUntil = trial.paidUntil;
+        } else {
+          userTier = (localStorage.getItem('huquq_user_tier') as 'pro' | 'max') || undefined;
+          userPaidUntil = localStorage.getItem('huquq_user_paid_until') || undefined;
         }
         upsertUser({
           firstName: profile.firstName,
           lastName: profile.lastName,
           login: profile.login,
-          paidTier: (localStorage.getItem('huquq_user_tier') as 'pro' | 'max') || undefined,
-          paidUntil: localStorage.getItem('huquq_user_paid_until') || undefined
+          paidTier: userTier,
+          paidUntil: userPaidUntil
         });
         window.dispatchEvent(new Event('huquq-auth-change'));
         setLoginUsername('');
@@ -306,15 +369,16 @@ const ProfilePage = () => {
     // Save profile to localStorage but keep logged_in false
     localStorage.setItem('huquq_user_profile', JSON.stringify(registerData));
     localStorage.setItem('huquq_user_logged_in', 'false');
-    // Launch promo: every new sign-up gets 30 days of free Pro.
-    grantFreeTrial(30, 'pro');
-    // Register the user in the central list so admin can see new sign-ups.
+    // Launch promo: every new sign-up gets 30 days of free Pro (once per
+    // login per device). Use the returned tier/expiry so we never lie to
+    // the users-store about the user's actual paid state.
+    const trial = grantFreeTrial(registerData.login, 30, 'pro');
     upsertUser({
       firstName: registerData.firstName,
       lastName: registerData.lastName,
       login: registerData.login,
-      paidTier: 'pro',
-      paidUntil: localStorage.getItem('huquq_user_paid_until') || undefined
+      paidTier: trial.tier,
+      paidUntil: trial.paidUntil
     });
     window.dispatchEvent(new Event('huquq-auth-change'));
 
