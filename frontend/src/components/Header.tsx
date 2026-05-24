@@ -243,22 +243,30 @@ const Header = ({ onMenuClick }: HeaderProps) => {
             className={`notification-btn ${bellPulse ? 'bell-pulsing' : ''}`}
             onClick={handleOpenDropdown}
             title="Bildirishnomalar"
-            style={{ cursor: 'pointer' }}
+            style={{ cursor: 'pointer', position: 'relative' }}
           >
             <Bell size={20} />
+            {/* Always-visible red dot when there are unread notifications */}
             {unreadCount > 0 && (
-              <span className={bellPulse ? 'bell-badge-pulse' : ''} style={{
-                position: 'absolute', top: '6px', right: '6px',
-                minWidth: '18px', height: '18px', padding: '0 5px',
-                borderRadius: '999px',
-                background: 'linear-gradient(135deg, #ef4444 0%, #dc2626 100%)',
-                color: '#fff', fontSize: '10px', fontWeight: 800,
-                display: 'flex', alignItems: 'center', justifyContent: 'center',
-                boxShadow: '0 2px 6px rgba(239, 68, 68, 0.45)',
-                border: '2px solid var(--bg-card, #fff)'
-              }}>
-                {unreadCount > 99 ? '99+' : unreadCount}
-              </span>
+              <>
+                <span className="notif-red-dot" />
+                {/* Radiating sonar rings — extra noticeable when bellPulse
+                    is on (i.e. a brand-new notification just arrived). */}
+                <span className={`notif-ripple ${bellPulse ? 'is-strong' : ''}`} />
+                <span className={`notif-ripple notif-ripple-2 ${bellPulse ? 'is-strong' : ''}`} />
+                <span className={bellPulse ? 'bell-badge-pulse' : ''} style={{
+                  position: 'absolute', top: '4px', right: '4px',
+                  minWidth: '18px', height: '18px', padding: '0 5px',
+                  borderRadius: '999px',
+                  background: 'linear-gradient(135deg, #ef4444 0%, #dc2626 100%)',
+                  color: '#fff', fontSize: '10px', fontWeight: 800,
+                  display: 'flex', alignItems: 'center', justifyContent: 'center',
+                  boxShadow: '0 2px 6px rgba(239, 68, 68, 0.5), 0 0 0 2px #fff',
+                  zIndex: 2
+                }}>
+                  {unreadCount > 99 ? '99+' : unreadCount}
+                </span>
+              </>
             )}
           </button>
 
@@ -508,6 +516,53 @@ const Header = ({ onMenuClick }: HeaderProps) => {
         @keyframes badgePulse {
           0%, 100% { transform: scale(1); box-shadow: 0 2px 6px rgba(239, 68, 68, 0.45); }
           50%      { transform: scale(1.25); box-shadow: 0 4px 14px rgba(239, 68, 68, 0.8), 0 0 0 6px rgba(239, 68, 68, 0.2); }
+        }
+        @keyframes notifDotPulse {
+          0%, 100% { transform: scale(1); opacity: 0.95; }
+          50%      { transform: scale(1.2); opacity: 1; }
+        }
+        @keyframes notifRipple {
+          0%   { transform: scale(0.6); opacity: 0.8; }
+          100% { transform: scale(2.6); opacity: 0; }
+        }
+        /* Small persistent red dot on the bell whenever there are unread items */
+        .notif-red-dot {
+          position: absolute;
+          top: 3px;
+          right: 3px;
+          width: 10px;
+          height: 10px;
+          border-radius: 50%;
+          background: radial-gradient(circle at 35% 30%, #fca5a5, #ef4444 60%, #b91c1c);
+          border: 2px solid #fff;
+          box-shadow: 0 0 8px rgba(239, 68, 68, 0.85), 0 0 0 2px rgba(239, 68, 68, 0.25);
+          animation: notifDotPulse 1.4s ease-in-out infinite;
+          pointer-events: none;
+          z-index: 3;
+        }
+        /* Sonar-style ring radiating outward from the bell when a new
+           notification just arrived (bellPulse on) */
+        .notif-ripple {
+          position: absolute;
+          top: 50%;
+          left: 50%;
+          width: 36px;
+          height: 36px;
+          margin-top: -18px;
+          margin-left: -18px;
+          border-radius: 50%;
+          border: 2px solid rgba(239, 68, 68, 0.55);
+          opacity: 0;
+          pointer-events: none;
+          z-index: 1;
+          animation: notifRipple 1.6s ease-out infinite;
+        }
+        .notif-ripple-2 {
+          animation-delay: 0.8s;
+        }
+        .notif-ripple.is-strong {
+          border-color: rgba(239, 68, 68, 0.9);
+          border-width: 3px;
         }
         .notification-btn.bell-pulsing {
           animation: bellShake 0.9s cubic-bezier(0.36, 0.07, 0.19, 0.97) 0s 4;
