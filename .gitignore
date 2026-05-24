@@ -19,3 +19,5 @@ lerna-debug.log*
 .vscode/
 .idea/
 *.log
+
+.vercel

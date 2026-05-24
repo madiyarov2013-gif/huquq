@@ -1,10 +1,10 @@
 import React, { useState, useRef, useEffect } from 'react';
 import {
-  getAiSettings, setAiSettings,
-  pickActiveKey, recordKeyUsage, getAiStats
+  getAiSettings, getAiStats,
+  refreshAiSettings, refreshAiStats
 } from '../ai-store';
 import type { AiStats, AiSettings } from '../ai-store';
-import { generateGemini, friendlyError } from '../ai-client';
+import { apiUrl } from '../config';
 
 interface Message {
   id: number;
@@ -19,10 +19,9 @@ const formatTime = () =>
 const AiAssistantPage: React.FC = () => {
   const [activeTab, setActiveTab] = useState<'chat' | 'limits'>('chat');
 
-  const [settings, setSettings] = useState<AiSettings | null>(null);
-  const [stats, setStats] = useState<AiStats>({
-    keysTotal: 0, keysActive: 0, usedToday: 0, dailyLimit: 0, date: ''
-  });
+  // First paint from cache (instant). Backend refresh happens on mount.
+  const [settings, setSettings] = useState<AiSettings>(() => getAiSettings());
+  const [stats, setStats] = useState<AiStats>(() => getAiStats());
 
   const [messages, setMessages] = useState<Message[]>([]);
   const [input, setInput] = useState('');
@@ -30,28 +29,39 @@ const AiAssistantPage: React.FC = () => {
   const messagesEndRef = useRef<HTMLDivElement>(null);
 
   useEffect(() => {
-    const s = getAiSettings();
-    setSettings(s);
-    setStats(getAiStats());
     setMessages([{
       id: 1,
-      text: s.greeting || 'Assalomu alaykum!',
+      text: settings.greeting || 'Assalomu alaykum!',
       sender: 'bot',
       time: formatTime()
     }]);
+    // Pull fresh data from backend on mount.
+    (async () => {
+      const s = await refreshAiSettings();
+      setSettings(s);
+      setStats(await refreshAiStats());
+      // Replace the greeting bubble if the backend version differs from cache.
+      setMessages(prev => {
+        const first = prev[0];
+        if (first && first.sender === 'bot' && first.text !== s.greeting) {
+          return [{ ...first, text: s.greeting || first.text }, ...prev.slice(1)];
+        }
+        return prev;
+      });
+    })();
+    // eslint-disable-next-line react-hooks/exhaustive-deps
   }, []);
 
   useEffect(() => {
     messagesEndRef.current?.scrollIntoView({ behavior: 'smooth' });
   }, [messages]);
 
-  // Pick up newly added API keys / settings changes from admin immediately —
-  // either via the same-tab `huquq-ai-change` event, cross-tab `storage`
-  // event, or when the tab regains focus.
+  // Pick up admin changes (same-tab event), cross-tab storage event, or
+  // returning focus.
   useEffect(() => {
-    const refresh = () => {
-      setSettings(getAiSettings());
-      setStats(getAiStats());
+    const refresh = async () => {
+      setSettings(await refreshAiSettings());
+      setStats(await refreshAiStats());
     };
     window.addEventListener('huquq-ai-change', refresh);
     window.addEventListener('storage', refresh);
@@ -73,56 +83,32 @@ const AiAssistantPage: React.FC = () => {
     setInput('');
     setIsTyping(true);
 
-    const liveSettings = getAiSettings();
-    if (!liveSettings.enabled) {
-      setMessages(prev => [...prev, {
-        id: Date.now() + 1,
-        text: "AI hozircha o'chirilgan. Administrator yoqishi kerak.",
-        sender: 'bot',
-        time: formatTime()
-      }]);
-      setIsTyping(false);
-      return;
-    }
-
-    const key = pickActiveKey();
-    if (!key) {
-      setMessages(prev => [...prev, {
-        id: Date.now() + 1,
-        text: "Faol API kalit topilmadi. Administrator panelida kalit qo'shing.",
-        sender: 'bot',
-        time: formatTime()
-      }]);
-      setIsTyping(false);
-      return;
-    }
-
     try {
-      const { reply, model } = await generateGemini(
-        key.apiKey,
-        liveSettings.defaultModel,
-        `${liveSettings.systemPrompt}\n\nFoydalanuvchi: ${msgText}`
-      );
-
-      if (model && model !== liveSettings.defaultModel) {
-        const next = { ...liveSettings, defaultModel: model };
-        setAiSettings(next);
-        setSettings(next);
+      const r = await fetch(apiUrl('/api/ai/chat'), {
+        method: 'POST',
+        headers: { 'Content-Type': 'application/json' },
+        body: JSON.stringify({ message: msgText })
+      });
+      const data = await r.json().catch(() => ({}));
+      if (!r.ok || !data.success) {
+        throw new Error(data.error || "AI bilan bog'lanib bo'lmadi");
       }
-
-      recordKeyUsage(key._id);
-      setStats(getAiStats());
-
       setMessages(prev => [...prev, {
         id: Date.now() + 1,
-        text: reply,
+        text: data.reply || '',
         sender: 'bot',
         time: formatTime()
       }]);
+      // Usage went up — refresh stats so the limits tab stays accurate.
+      setStats(await refreshAiStats());
     } catch (err) {
+      const msg = (err as Error).message || String(err);
+      const friendly = msg.includes('Failed to fetch')
+        ? "Backend bilan bog'lanib bo'lmadi. Backend papkasida 'npm start' bilan ishga tushiring (port 5000)."
+        : msg;
       setMessages(prev => [...prev, {
         id: Date.now() + 1,
-        text: friendlyError(err),
+        text: friendly,
         sender: 'bot',
         time: formatTime()
       }]);
@@ -139,13 +125,11 @@ const AiAssistantPage: React.FC = () => {
     { id: 'limits' as const, label: 'Limitlar', icon: '📊' }
   ];
 
-  const statusText = !settings
-    ? 'Sozlamalar yuklanmoqda...'
-    : !settings.enabled
-      ? "AI o'chirilgan (administrator yoqishi kerak)"
-      : stats.keysActive === 0
-        ? "API kalit topilmadi (administrator qo'shishi kerak)"
-        : `Ulangan — ${settings.defaultProvider}`;
+  const statusText = !settings.enabled
+    ? "AI o'chirilgan (administrator yoqishi kerak)"
+    : stats.keysActive === 0
+      ? "API kalit topilmadi (administrator qo'shishi kerak)"
+      : `Ulangan — ${settings.defaultProvider}`;
 
   return (
     <div className="ai-assistant-page">
@@ -215,27 +199,6 @@ const AiAssistantPage: React.FC = () => {
         <div className="ai-limits-section">
           <h2>Limitlar va statistika</h2>
           <div className="ai-limits-grid">
-            <div className="ai-limit-card">
-              <div className="ai-limit-icon">📨</div>
-              <div className="ai-limit-data">
-                <span className="ai-limit-value">{stats.usedToday} / {stats.dailyLimit}</span>
-                <span className="ai-limit-label">Bugungi so'rovlar</span>
-              </div>
-            </div>
-            <div className="ai-limit-card">
-              <div className="ai-limit-icon">🔑</div>
-              <div className="ai-limit-data">
-                <span className="ai-limit-value">{stats.keysTotal}</span>
-                <span className="ai-limit-label">Jami kalitlar</span>
-              </div>
-            </div>
-            <div className="ai-limit-card">
-              <div className="ai-limit-icon">✅</div>
-              <div className="ai-limit-data">
-                <span className="ai-limit-value">{stats.keysActive}</span>
-                <span className="ai-limit-label">Faol kalitlar</span>
-              </div>
-            </div>
             <div className="ai-limit-card">
               <div className="ai-limit-icon">⚡</div>
               <div className="ai-limit-data">

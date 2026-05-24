@@ -1,11 +1,17 @@
-// Client-side AI key + settings store (localStorage based).
-// Used when the backend isn't reachable (e.g. when frontend is deployed on
-// HTTPS Vercel but backend is only on localhost).
+// Backend-first AI store.
+//
+// Source of truth is the Express server (`/api/ai/*`), which persists settings
+// and API keys to `backend/data/*.json`. Every admin — on any browser, on any
+// device — sees the same data. localStorage is still used as a *cache* so the
+// admin panel can render instantly on first paint and so the UI keeps working
+// briefly if the backend hiccups; cache is refreshed in the background from
+// the server and overwrites whatever was sitting locally.
+
+import { apiUrl } from './config';
 
 export interface AiKey {
   _id: string;
   name: string;
-  apiKey: string; // full key, kept only in this browser
   provider: 'gemini' | 'openai';
   dailyLimit: number;
   used: number;
@@ -31,8 +37,9 @@ export interface AiStats {
   date: string;
 }
 
-const KEYS_KEY = 'huquq_ai_keys_v1';
-const SETTINGS_KEY = 'huquq_ai_settings_v1';
+const SETTINGS_CACHE = 'huquq_ai_settings_v1';
+const KEYS_CACHE = 'huquq_ai_keys_v1';
+const STATS_CACHE = 'huquq_ai_stats_v1';
 
 export const DEFAULT_AI_SETTINGS: AiSettings = {
   systemPrompt:
@@ -44,156 +51,206 @@ export const DEFAULT_AI_SETTINGS: AiSettings = {
   defaultModel: 'gemini-1.5-flash'
 };
 
-const today = (): string => new Date().toISOString().slice(0, 10);
-const newId = (): string =>
-  Math.random().toString(36).slice(2, 10) + Date.now().toString(36);
+const DEFAULT_STATS: AiStats = {
+  keysTotal: 0,
+  keysActive: 0,
+  usedToday: 0,
+  dailyLimit: 0,
+  date: new Date().toISOString().slice(0, 10)
+};
 
-const mask = (k: string): string =>
-  k && k.length > 8 ? k.slice(0, 4) + '...' + k.slice(-4) : '***';
+// --- cache helpers ---------------------------------------------------------
 
-export const getAiSettings = (): AiSettings => {
+const readCache = <T>(key: string, fallback: T): T => {
   try {
-    const raw = localStorage.getItem(SETTINGS_KEY);
-    if (!raw) return { ...DEFAULT_AI_SETTINGS };
-    return { ...DEFAULT_AI_SETTINGS, ...JSON.parse(raw) };
+    const raw = localStorage.getItem(key);
+    if (!raw) return fallback;
+    return JSON.parse(raw) as T;
   } catch {
-    return { ...DEFAULT_AI_SETTINGS };
+    return fallback;
   }
 };
 
-// Tab-local broadcaster: storage events only fire in *other* tabs, so we
-// also dispatch a custom event for same-tab listeners (e.g. admin → admin's
-// embedded chat preview, or AI page reacting to settings saves done in the
-// same SPA without a reload).
+const writeCache = (key: string, value: unknown): void => {
+  try {
+    localStorage.setItem(key, JSON.stringify(value));
+  } catch {
+    /* quota — ignore */
+  }
+};
+
 const notifyAiChange = (): void => {
   try {
     window.dispatchEvent(new Event('huquq-ai-change'));
   } catch {
-    /* SSR / non-browser */
+    /* SSR */
   }
 };
 
-export const setAiSettings = (s: AiSettings): void => {
-  localStorage.setItem(SETTINGS_KEY, JSON.stringify(s));
-  notifyAiChange();
-};
+// --- synchronous reads from cache (used for first paint) -------------------
 
-const readKeys = (): AiKey[] => {
+export const getAiSettings = (): AiSettings => ({
+  ...DEFAULT_AI_SETTINGS,
+  ...readCache(SETTINGS_CACHE, {} as Partial<AiSettings>)
+});
+
+export const getAiKeys = (): AiKey[] => readCache(KEYS_CACHE, [] as AiKey[]);
+
+export const getAiStats = (): AiStats => ({
+  ...DEFAULT_STATS,
+  ...readCache(STATS_CACHE, {} as Partial<AiStats>)
+});
+
+// --- async backend syncs ---------------------------------------------------
+
+export const refreshAiSettings = async (): Promise<AiSettings> => {
   try {
-    const raw = localStorage.getItem(KEYS_KEY);
-    if (!raw) return [];
-    const arr = JSON.parse(raw);
-    return Array.isArray(arr) ? arr : [];
-  } catch {
-    return [];
-  }
-};
-const writeKeys = (arr: AiKey[]): void => {
-  localStorage.setItem(KEYS_KEY, JSON.stringify(arr));
-  notifyAiChange();
-};
-
-// Refresh per-day counters: reset `used` if the date rolled over.
-const rolloverKeys = (keys: AiKey[]): AiKey[] => {
-  const td = today();
-  let changed = false;
-  const next = keys.map(k => {
-    if (k.usedDate !== td) {
-      changed = true;
-      return { ...k, used: 0, usedDate: td };
+    const r = await fetch(apiUrl('/api/ai/settings'));
+    const d = await r.json();
+    if (d.success && d.data) {
+      const merged = { ...DEFAULT_AI_SETTINGS, ...d.data };
+      writeCache(SETTINGS_CACHE, merged);
+      notifyAiChange();
+      return merged;
     }
-    return k;
-  });
-  if (changed) writeKeys(next);
-  return next;
+  } catch {
+    /* backend unreachable — fall back to cache */
+  }
+  return getAiSettings();
 };
 
-// Public: list keys with masked apiKey (no full key exposed in UI).
-export const getAiKeys = (): AiKey[] =>
-  rolloverKeys(readKeys()).map(k => ({ ...k, keyMasked: mask(k.apiKey) }));
+export const refreshAiKeys = async (): Promise<AiKey[]> => {
+  try {
+    const r = await fetch(apiUrl('/api/ai/keys'));
+    const d = await r.json();
+    if (d.success && Array.isArray(d.data)) {
+      writeCache(KEYS_CACHE, d.data);
+      notifyAiChange();
+      return d.data;
+    }
+  } catch {
+    /* backend unreachable */
+  }
+  return getAiKeys();
+};
 
-export const findAiKeyFull = (id: string): AiKey | null =>
-  readKeys().find(k => k._id === id) || null;
+export const refreshAiStats = async (): Promise<AiStats> => {
+  try {
+    const r = await fetch(apiUrl('/api/ai/stats'));
+    const d = await r.json();
+    if (d.success && d.data) {
+      writeCache(STATS_CACHE, d.data);
+      notifyAiChange();
+      return d.data;
+    }
+  } catch {
+    /* backend unreachable */
+  }
+  return getAiStats();
+};
 
-export const createAiKey = (input: {
+export const refreshAll = async (): Promise<void> => {
+  await Promise.all([refreshAiSettings(), refreshAiKeys(), refreshAiStats()]);
+};
+
+// --- async mutations (backend-first; cache refreshed on success) -----------
+
+const backendError = (d: { error?: string } | null) =>
+  new Error(d?.error || "Backend bilan bog'lanib bo'lmadi. Backend papkasida 'npm start' bilan ishga tushiring.");
+
+export const saveAiSettings = async (s: AiSettings): Promise<AiSettings> => {
+  const r = await fetch(apiUrl('/api/ai/settings'), {
+    method: 'PUT',
+    headers: { 'Content-Type': 'application/json' },
+    body: JSON.stringify(s)
+  }).catch(() => null);
+  if (!r) throw backendError(null);
+  const d = await r.json().catch(() => null);
+  if (!d?.success) throw backendError(d);
+  const merged = { ...DEFAULT_AI_SETTINGS, ...d.data };
+  writeCache(SETTINGS_CACHE, merged);
+  notifyAiChange();
+  return merged;
+};
+
+export const createAiKey = async (input: {
   name: string;
   apiKey: string;
   provider?: 'gemini' | 'openai';
   dailyLimit?: number;
   active?: boolean;
-}): AiKey => {
-  const k: AiKey = {
-    _id: newId(),
-    name: input.name.trim(),
-    apiKey: input.apiKey.trim(),
-    provider: input.provider || 'gemini',
-    dailyLimit: input.dailyLimit ?? 1500,
-    used: 0,
-    usedDate: today(),
-    active: input.active !== false,
-    createdAt: new Date().toISOString(),
-    keyMasked: mask(input.apiKey.trim())
-  };
-  const arr = readKeys();
-  arr.push(k);
-  writeKeys(arr);
-  // Auto-enable AI when the first/any key is added, so the chat doesn't
-  // appear "off" right after the user finishes adding their API key.
-  const current = getAiSettings();
-  if (!current.enabled) {
-    setAiSettings({ ...current, enabled: true });
+}): Promise<AiKey> => {
+  const r = await fetch(apiUrl('/api/ai/keys'), {
+    method: 'POST',
+    headers: { 'Content-Type': 'application/json' },
+    body: JSON.stringify({
+      name: input.name.trim(),
+      apiKey: input.apiKey.trim(),
+      provider: input.provider || 'gemini',
+      dailyLimit: input.dailyLimit ?? 1500,
+      active: input.active !== false
+    })
+  }).catch(() => null);
+  if (!r) throw backendError(null);
+  const d = await r.json().catch(() => null);
+  if (!d?.success) throw backendError(d);
+  await Promise.all([refreshAiKeys(), refreshAiStats()]);
+  // Auto-enable AI when the first/any key is added.
+  const cur = getAiSettings();
+  if (!cur.enabled) {
+    await saveAiSettings({ ...cur, enabled: true });
   }
-  return k;
+  return d.data;
 };
 
-export const updateAiKey = (id: string, patch: Partial<AiKey>): AiKey | null => {
-  const arr = readKeys();
-  const idx = arr.findIndex(k => k._id === id);
-  if (idx < 0) return null;
-  arr[idx] = { ...arr[idx], ...patch };
-  writeKeys(arr);
-  return arr[idx];
+export const updateAiKey = async (
+  id: string,
+  patch: Partial<Pick<AiKey, 'name' | 'provider' | 'dailyLimit' | 'active'>>
+): Promise<AiKey> => {
+  const r = await fetch(apiUrl(`/api/ai/keys/${id}`), {
+    method: 'PUT',
+    headers: { 'Content-Type': 'application/json' },
+    body: JSON.stringify(patch)
+  }).catch(() => null);
+  if (!r) throw backendError(null);
+  const d = await r.json().catch(() => null);
+  if (!d?.success) throw backendError(d);
+  await Promise.all([refreshAiKeys(), refreshAiStats()]);
+  return d.data;
 };
 
-export const deleteAiKey = (id: string): boolean => {
-  const arr = readKeys();
-  const next = arr.filter(k => k._id !== id);
-  if (next.length === arr.length) return false;
-  writeKeys(next);
+export const deleteAiKey = async (id: string): Promise<boolean> => {
+  const r = await fetch(apiUrl(`/api/ai/keys/${id}`), { method: 'DELETE' }).catch(() => null);
+  if (!r) throw backendError(null);
+  const d = await r.json().catch(() => null);
+  if (!d?.success) throw backendError(d);
+  await Promise.all([refreshAiKeys(), refreshAiStats()]);
   return true;
 };
 
-// Pick the active key with the most remaining budget.
-export const pickActiveKey = (): AiKey | null => {
-  const keys = rolloverKeys(readKeys()).filter(k => k.active && k.used < k.dailyLimit);
-  if (keys.length === 0) return null;
-  keys.sort((a, b) => b.dailyLimit - b.used - (a.dailyLimit - a.used));
-  return keys[0];
+// Verify an *already-saved* key by id (server has the full apiKey).
+export const testSavedAiKey = async (id: string): Promise<{ reply: string; model: string }> => {
+  const r = await fetch(apiUrl(`/api/ai/keys/${id}/test`), { method: 'POST' }).catch(() => null);
+  if (!r) throw backendError(null);
+  const d = await r.json().catch(() => null);
+  if (!d?.success) throw backendError(d);
+  return { reply: d.reply || '', model: d.model || '' };
 };
 
-export const recordKeyUsage = (id: string): void => {
-  const arr = readKeys();
-  const idx = arr.findIndex(k => k._id === id);
-  if (idx < 0) return;
-  const td = today();
-  arr[idx] = {
-    ...arr[idx],
-    used: (arr[idx].usedDate === td ? arr[idx].used : 0) + 1,
-    usedDate: td
-  };
-  writeKeys(arr);
-};
-
-export const getAiStats = (): AiStats => {
-  const td = today();
-  const keys = readKeys();
-  let usedToday = 0;
-  let dailyLimit = 0;
-  let keysActive = 0;
-  for (const k of keys) {
-    usedToday += k.usedDate === td ? k.used : 0;
-    dailyLimit += k.dailyLimit;
-    if (k.active) keysActive += 1;
-  }
-  return { keysTotal: keys.length, keysActive, usedToday, dailyLimit, date: td };
+// Verify a *not-yet-saved* key (passed inline). Used by the "Test" button in
+// the new-key modal.
+export const testInlineAiKey = async (
+  apiKey: string,
+  provider: 'gemini' | 'openai' = 'gemini',
+  model?: string
+): Promise<{ reply: string; model: string }> => {
+  const r = await fetch(apiUrl('/api/ai/test'), {
+    method: 'POST',
+    headers: { 'Content-Type': 'application/json' },
+    body: JSON.stringify({ apiKey, provider, model })
+  }).catch(() => null);
+  if (!r) throw backendError(null);
+  const d = await r.json().catch(() => null);
+  if (!d?.success) throw backendError(d);
+  return { reply: d.reply || '', model: d.model || '' };
 };

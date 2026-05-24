@@ -3,7 +3,6 @@ import { apiUrl } from '../config';
 import * as aiStore from '../ai-store';
 import * as paymentsStore from '../payments-store';
 import * as usersStore from '../users-store';
-import { generateGemini, friendlyError } from '../ai-client';
 import {
   ShieldCheck, Lock, LayoutDashboard, BookOpen,
   Plus, Edit, Trash2, Save, X, PlusCircle, HelpCircle,
@@ -177,6 +176,26 @@ const AdminPage: React.FC = () => {
     }
   }, [isAuthenticated]);
 
+  // Live-refresh AI data so admin always sees the server-side state — e.g.
+  // when this tab regains focus after another admin made changes elsewhere,
+  // or when the user navigates back to /admin after editing AI settings.
+  useEffect(() => {
+    if (!isAuthenticated) return;
+    const refresh = () => {
+      fetchAiSettings();
+      fetchAiKeys();
+      fetchAiStats();
+    };
+    window.addEventListener('huquq-ai-change', refresh);
+    window.addEventListener('storage', refresh);
+    window.addEventListener('focus', refresh);
+    return () => {
+      window.removeEventListener('huquq-ai-change', refresh);
+      window.removeEventListener('storage', refresh);
+      window.removeEventListener('focus', refresh);
+    };
+  }, [isAuthenticated]);
+
   // Live-refresh payments when a user completes a purchase (same-tab event),
   // when another tab writes to localStorage (Chrome multi-tab), or when the
   // admin tab regains focus after switching back from the user tab.
@@ -240,20 +259,29 @@ const AdminPage: React.FC = () => {
     }
   };
 
-  // ===== AI handlers (client-side via localStorage + direct Gemini API) =====
+  // ===== AI handlers (backend-first via /api/ai/*; localStorage cache) =====
+  // Sync from backend so any admin on any browser/device sees the same data
+  // (the user explicitly asked for this — see commit message).
   const fetchAiSettings = async () => {
-    setAiSettings(aiStore.getAiSettings());
+    const s = await aiStore.refreshAiSettings();
+    setAiSettings(s as unknown as AiSettings);
   };
   const fetchAiKeys = async () => {
-    setAiKeys(aiStore.getAiKeys() as unknown as AiKey[]);
+    const keys = await aiStore.refreshAiKeys();
+    setAiKeys(keys as unknown as AiKey[]);
   };
   const fetchAiStats = async () => {
-    setAiStats(aiStore.getAiStats());
+    setAiStats(await aiStore.refreshAiStats());
   };
 
   const handleSaveAiSettings = async () => {
-    aiStore.setAiSettings(aiSettings as unknown as aiStore.AiSettings);
-    showNotification("AI sozlamalari saqlandi");
+    try {
+      const saved = await aiStore.saveAiSettings(aiSettings as unknown as aiStore.AiSettings);
+      setAiSettings(saved as unknown as AiSettings);
+      showNotification("AI sozlamalari saqlandi");
+    } catch (err) {
+      showNotification((err as Error).message || "Saqlanmadi", 'error');
+    }
   };
 
   const handleCreateAiKey = async () => {
@@ -261,29 +289,38 @@ const AdminPage: React.FC = () => {
       showNotification("Nom va kalitni to'ldiring", 'error');
       return;
     }
-    aiStore.createAiKey({
-      name: newAiKey.name,
-      apiKey: newAiKey.apiKey,
-      provider: newAiKey.provider as 'gemini' | 'openai',
-      dailyLimit: newAiKey.dailyLimit
-    });
-    setNewAiKey({ name: '', apiKey: '', provider: 'gemini', dailyLimit: 1500 });
-    setShowAddKeyModal(false);
-    fetchAiKeys();
-    fetchAiStats();
-    showNotification("Yangi kalit qo'shildi");
+    try {
+      await aiStore.createAiKey({
+        name: newAiKey.name,
+        apiKey: newAiKey.apiKey,
+        provider: newAiKey.provider as 'gemini' | 'openai',
+        dailyLimit: newAiKey.dailyLimit
+      });
+      setNewAiKey({ name: '', apiKey: '', provider: 'gemini', dailyLimit: 1500 });
+      setShowAddKeyModal(false);
+      await Promise.all([fetchAiKeys(), fetchAiStats(), fetchAiSettings()]);
+      showNotification("Yangi kalit qo'shildi");
+    } catch (err) {
+      showNotification((err as Error).message || "Kalit qo'shilmadi", 'error');
+    }
   };
 
   const handleToggleAiKey = async (k: AiKey) => {
-    aiStore.updateAiKey(k._id, { active: !k.active });
-    fetchAiKeys();
-    fetchAiStats();
+    try {
+      await aiStore.updateAiKey(k._id, { active: !k.active });
+      await Promise.all([fetchAiKeys(), fetchAiStats()]);
+    } catch (err) {
+      showNotification((err as Error).message || "Yangilanmadi", 'error');
+    }
   };
 
   const handleUpdateAiKeyLimit = async (id: string, dailyLimit: number) => {
-    aiStore.updateAiKey(id, { dailyLimit });
-    fetchAiKeys();
-    fetchAiStats();
+    try {
+      await aiStore.updateAiKey(id, { dailyLimit });
+      await Promise.all([fetchAiKeys(), fetchAiStats()]);
+    } catch (err) {
+      showNotification((err as Error).message || "Yangilanmadi", 'error');
+    }
   };
 
   // ===== Subscription handlers =====
@@ -371,29 +408,24 @@ const AdminPage: React.FC = () => {
 
   const handleDeleteAiKey = async (id: string) => {
     if (!window.confirm("Haqiqatan ham ushbu kalitni o'chirmoqchimisiz?")) return;
-    aiStore.deleteAiKey(id);
-    fetchAiKeys();
-    fetchAiStats();
-    showNotification("Kalit o'chirildi");
+    try {
+      await aiStore.deleteAiKey(id);
+      await Promise.all([fetchAiKeys(), fetchAiStats()]);
+      showNotification("Kalit o'chirildi");
+    } catch (err) {
+      showNotification((err as Error).message || "O'chirilmadi", 'error');
+    }
   };
 
   const handleTestAiKey = async (id: string) => {
-    const k = aiStore.findAiKeyFull(id);
-    if (!k) {
-      showNotification("Kalit topilmadi", 'error');
-      return;
-    }
     showNotification("Kalit tekshirilmoqda...");
     try {
-      const settings = aiStore.getAiSettings();
-      const { reply, model } = await generateGemini(k.apiKey, settings.defaultModel, 'Salom, bu test. Bir so\'z bilan javob ber.');
-      if (model !== settings.defaultModel) {
-        aiStore.setAiSettings({ ...settings, defaultModel: model });
-        setAiSettings(aiStore.getAiSettings());
-      }
+      const { reply, model } = await aiStore.testSavedAiKey(id);
+      // Backend may have auto-updated default model — pull fresh settings.
+      await fetchAiSettings();
       showNotification(`Kalit ishlayapti (${model}) — javob: "${(reply || '').slice(0, 80)}"`);
     } catch (err) {
-      showNotification(friendlyError(err), 'error');
+      showNotification((err as Error).message || "Kalit ishlamadi", 'error');
     }
   };
 
@@ -404,15 +436,15 @@ const AdminPage: React.FC = () => {
     }
     showNotification("Kalit tekshirilmoqda...");
     try {
-      const settings = aiStore.getAiSettings();
-      const { reply, model } = await generateGemini(newAiKey.apiKey.trim(), settings.defaultModel, 'Salom, bu test. Bir so\'z bilan javob ber.');
-      if (model !== settings.defaultModel) {
-        aiStore.setAiSettings({ ...settings, defaultModel: model });
-        setAiSettings(aiStore.getAiSettings());
-      }
+      const { reply, model } = await aiStore.testInlineAiKey(
+        newAiKey.apiKey.trim(),
+        newAiKey.provider as 'gemini' | 'openai',
+        aiSettings.defaultModel
+      );
+      await fetchAiSettings();
       showNotification(`Kalit to'g'ri (${model}) — javob: "${(reply || '').slice(0, 80)}"`);
     } catch (err) {
-      showNotification(friendlyError(err), 'error');
+      showNotification((err as Error).message || "Kalit ishlamadi", 'error');
     }
   };
 
