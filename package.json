@@ -1,4 +1,14 @@
 {
+  "name": "huquq",
+  "private": true,
+  "version": "1.0.0",
+  "description": "Huquq — Vercel deployment root. Frontend in /frontend, serverless API in /api.",
+  "dependencies": {
+    "@google/generative-ai": "^0.21.0",
+    "cors": "^2.8.5",
+    "express": "^4.21.0",
+    "mongoose": "^8.7.0"
+  },
   "devDependencies": {
     "pdf-parse": "^2.4.5"
   }

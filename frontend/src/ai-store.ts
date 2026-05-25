@@ -188,14 +188,27 @@ export interface BackendHealth {
 export const checkBackendHealth = async (): Promise<BackendHealth> => {
   try {
     const r = await fetch(apiUrl('/api/health'));
-    const d = await r.json().catch(() => null);
-    if (!d) {
-      return {
-        success: false, functionReachable: r.ok, mongoUriPresent: false,
-        mongoConnected: false, mongoError: `HTTP ${r.status} — javob JSON emas.`
-      };
-    }
-    return d as BackendHealth;
+    const text = await r.text();
+    let d: BackendHealth | null = null;
+    try { d = JSON.parse(text) as BackendHealth; } catch { /* not JSON */ }
+    if (d) return d;
+
+    // Got a non-JSON response. Most common case: status 200 with HTML body,
+    // meaning Vercel's SPA fallback intercepted /api/health because the
+    // serverless function wasn't deployed (or the rewrites are wrong).
+    const looksLikeHtml = text.trim().startsWith('<') || text.includes('<!doctype html');
+    return {
+      success: false,
+      functionReachable: false,
+      mongoUriPresent: false,
+      mongoConnected: false,
+      mongoError: looksLikeHtml
+        ? `Server /api/health o'rniga HTML qaytardi (HTTP ${r.status}). Serverless function deploy qilinmagan.`
+        : `HTTP ${r.status} — javob JSON emas.`,
+      hint: looksLikeHtml
+        ? "Vercel'da yangi commit'ni deploy qilib bo'lganini kuting (~1 daqiqa), keyin Project Settings → General → Root Directory bo'sh ('./') ekanini tekshiring. /api/[...path].js endi repo root'ida."
+        : undefined
+    };
   } catch (err) {
     return {
       success: false,
@@ -203,7 +216,7 @@ export const checkBackendHealth = async (): Promise<BackendHealth> => {
       mongoUriPresent: false,
       mongoConnected: false,
       mongoError: (err as Error).message || "Tarmoq xatosi",
-      hint: "Serverless function /api/health topilmadi. Vercel Project Settings → Root Directory = 'frontend' ekanini tekshiring."
+      hint: "Serverless function /api/health topilmadi. Vercel Project Settings → General → Root Directory bo'sh ('./') ekanini va deploy tugaganini tekshiring."
     };
   }
 };
