@@ -155,22 +155,56 @@ export const refreshAll = async (): Promise<void> => {
 
 // --- async mutations (backend-first; cache refreshed on success) -----------
 
-// Distinguishes the three failure modes so the UI can tell the admin what to
-// fix:
-//   1. fetch threw → serverless function not deployed (or CORS) — explain
-//      Vercel Root Directory must be `frontend` so /api/[...path].js is found.
-//   2. server responded with a JSON {success:false,error} → surface that
+// Distinguishes the failure modes so the UI can tell the admin what to fix:
+//   1. fetch threw → no response (CORS / DNS / offline).
+//   2. server responded with JSON {success:false,error} → surface that
 //      message verbatim (e.g. "MONGO_URI env var is not set").
-//   3. server responded but body wasn't parseable → include status code.
-const backendError = (d: { error?: string } | null, status?: number): Error => {
+//   3. server responded with HTML at 200 → Vercel's SPA fallback caught
+//      /api/* because the serverless function isn't deployed. Means Vercel
+//      Root Directory is wrong or deploy is still building.
+//   4. server responded with non-2xx and no JSON body → include status.
+const backendError = (d: { error?: string } | null, status?: number, body?: string): Error => {
   if (d?.error) return new Error(d.error);
+  const looksLikeHtml = !!body && (body.trim().startsWith('<') || body.includes('<!doctype'));
+  if (looksLikeHtml) {
+    return new Error(
+      "Vercel /api/* o'rniga HTML qaytardi — serverless function deploy qilinmagan. " +
+      "Vercel Dashboard → Settings → General → Root Directory bo'sh ('./') ekanini va " +
+      "eng yangi commit deploy bo'lganini tekshiring (Deployments tab)."
+    );
+  }
   if (typeof status === 'number') {
-    return new Error(`Backend xato (${status}). Vercel logs'ni tekshiring.`);
+    return new Error(`Backend xato (${status}). Vercel Function Logs'ni tekshiring.`);
   }
   return new Error(
-    "Backend topilmadi. Local dev: backend/ papkasida 'npm start'. " +
-    "Vercel: Project Settings → General → Root Directory = 'frontend' bo'lishi kerak."
+    "Backend bilan bog'lanib bo'lmadi (tarmoq xatosi). Vercel deployment URL'i to'g'ri " +
+    "ekanini va Internet ulanishingizni tekshiring."
   );
+};
+
+// Shared mutation/refresh helper. Reads response body once, tries JSON parse,
+// and on failure throws backendError with full context (status + raw body)
+// so HTML-at-200 (SPA fallback) is correctly identified.
+const apiCall = async <T>(url: string, init?: RequestInit): Promise<T> => {
+  let r: Response | null = null;
+  try { r = await fetch(url, init); } catch { throw backendError(null); }
+  const body = await r.text();
+  let d: { success?: boolean; data?: T; error?: string } | null = null;
+  try { d = JSON.parse(body); } catch { /* not JSON */ }
+  if (!d?.success) throw backendError(d, r.status, body);
+  return d.data as T;
+};
+
+// Same as apiCall but returns the full parsed JSON (some endpoints have
+// extra top-level fields like `reply` and `model`).
+const apiCallRaw = async <T extends { success?: boolean }>(url: string, init?: RequestInit): Promise<T> => {
+  let r: Response | null = null;
+  try { r = await fetch(url, init); } catch { throw backendError(null); }
+  const body = await r.text();
+  let d: T | null = null;
+  try { d = JSON.parse(body) as T; } catch { /* not JSON */ }
+  if (!d?.success) throw backendError(d as { error?: string } | null, r.status, body);
+  return d;
 };
 
 // Diagnostic: hit /api/health and return the report (or throw on network).
@@ -222,15 +256,12 @@ export const checkBackendHealth = async (): Promise<BackendHealth> => {
 };
 
 export const saveAiSettings = async (s: AiSettings): Promise<AiSettings> => {
-  const r = await fetch(apiUrl('/api/ai/settings'), {
+  const data = await apiCall<AiSettings>(apiUrl('/api/ai/settings'), {
     method: 'PUT',
     headers: { 'Content-Type': 'application/json' },
     body: JSON.stringify(s)
-  }).catch(() => null);
-  if (!r) throw backendError(null);
-  const d = await r.json().catch(() => null);
-  if (!d?.success) throw backendError(d);
-  const merged = { ...DEFAULT_AI_SETTINGS, ...d.data };
+  });
+  const merged = { ...DEFAULT_AI_SETTINGS, ...data };
   writeCache(SETTINGS_CACHE, merged);
   notifyAiChange();
   return merged;
@@ -243,7 +274,7 @@ export const createAiKey = async (input: {
   dailyLimit?: number;
   active?: boolean;
 }): Promise<AiKey> => {
-  const r = await fetch(apiUrl('/api/ai/keys'), {
+  const data = await apiCall<AiKey>(apiUrl('/api/ai/keys'), {
     method: 'POST',
     headers: { 'Content-Type': 'application/json' },
     body: JSON.stringify({
@@ -253,50 +284,40 @@ export const createAiKey = async (input: {
       dailyLimit: input.dailyLimit ?? 1500,
       active: input.active !== false
     })
-  }).catch(() => null);
-  if (!r) throw backendError(null);
-  const d = await r.json().catch(() => null);
-  if (!d?.success) throw backendError(d);
+  });
   await Promise.all([refreshAiKeys(), refreshAiStats()]);
   // Auto-enable AI when the first/any key is added.
   const cur = getAiSettings();
   if (!cur.enabled) {
     await saveAiSettings({ ...cur, enabled: true });
   }
-  return d.data;
+  return data;
 };
 
 export const updateAiKey = async (
   id: string,
   patch: Partial<Pick<AiKey, 'name' | 'provider' | 'dailyLimit' | 'active'>>
 ): Promise<AiKey> => {
-  const r = await fetch(apiUrl(`/api/ai/keys/${id}`), {
+  const data = await apiCall<AiKey>(apiUrl(`/api/ai/keys/${id}`), {
     method: 'PUT',
     headers: { 'Content-Type': 'application/json' },
     body: JSON.stringify(patch)
-  }).catch(() => null);
-  if (!r) throw backendError(null);
-  const d = await r.json().catch(() => null);
-  if (!d?.success) throw backendError(d);
+  });
   await Promise.all([refreshAiKeys(), refreshAiStats()]);
-  return d.data;
+  return data;
 };
 
 export const deleteAiKey = async (id: string): Promise<boolean> => {
-  const r = await fetch(apiUrl(`/api/ai/keys/${id}`), { method: 'DELETE' }).catch(() => null);
-  if (!r) throw backendError(null);
-  const d = await r.json().catch(() => null);
-  if (!d?.success) throw backendError(d);
+  await apiCall<unknown>(apiUrl(`/api/ai/keys/${id}`), { method: 'DELETE' });
   await Promise.all([refreshAiKeys(), refreshAiStats()]);
   return true;
 };
 
 // Verify an *already-saved* key by id (server has the full apiKey).
 export const testSavedAiKey = async (id: string): Promise<{ reply: string; model: string }> => {
-  const r = await fetch(apiUrl(`/api/ai/keys/${id}/test`), { method: 'POST' }).catch(() => null);
-  if (!r) throw backendError(null);
-  const d = await r.json().catch(() => null);
-  if (!d?.success) throw backendError(d);
+  const d = await apiCallRaw<{ success: boolean; reply?: string; model?: string }>(
+    apiUrl(`/api/ai/keys/${id}/test`), { method: 'POST' }
+  );
   return { reply: d.reply || '', model: d.model || '' };
 };
 
@@ -307,13 +328,13 @@ export const testInlineAiKey = async (
   provider: 'gemini' | 'openai' = 'gemini',
   model?: string
 ): Promise<{ reply: string; model: string }> => {
-  const r = await fetch(apiUrl('/api/ai/test'), {
-    method: 'POST',
-    headers: { 'Content-Type': 'application/json' },
-    body: JSON.stringify({ apiKey, provider, model })
-  }).catch(() => null);
-  if (!r) throw backendError(null);
-  const d = await r.json().catch(() => null);
-  if (!d?.success) throw backendError(d);
+  const d = await apiCallRaw<{ success: boolean; reply?: string; model?: string }>(
+    apiUrl('/api/ai/test'),
+    {
+      method: 'POST',
+      headers: { 'Content-Type': 'application/json' },
+      body: JSON.stringify({ apiKey, provider, model })
+    }
+  );
   return { reply: d.reply || '', model: d.model || '' };
 };
