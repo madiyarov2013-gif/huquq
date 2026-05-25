@@ -104,7 +104,7 @@ const AiAssistantPage: React.FC = () => {
     } catch (err) {
       const msg = (err as Error).message || String(err);
       const friendly = msg.includes('Failed to fetch')
-        ? "Backend bilan bog'lanib bo'lmadi. Backend papkasida 'npm start' bilan ishga tushiring (port 5000)."
+        ? "Hozircha AI bilan bog'lanib bo'lmadi. Administrator API kalitni va backend ulanishini tekshirishi kerak (Vercel: MONGO_URI env var + MongoDB Atlas Network Access)."
         : msg;
       setMessages(prev => [...prev, {
         id: Date.now() + 1,

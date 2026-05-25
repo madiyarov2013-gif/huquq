@@ -304,6 +304,22 @@ app.get('/api/status', (req, res) => {
   res.json({ success: true, message: "Huquq API is running" });
 });
 
+// Diagnostic — mirrors the Vercel /api/health endpoint so the admin
+// "Backendni tekshirish" button works the same way in local dev.
+app.get('/api/health', async (_req, res) => {
+  const state = mongoose.connection.readyState; // 0=disconnected, 1=connected, 2=connecting, 3=disconnecting
+  res.json({
+    success: true,
+    functionReachable: true,
+    mongoUriPresent: Boolean(process.env.MONGO_URI),
+    mongoConnected: state === 1,
+    mongoState: state,
+    mongoError: state === 1 ? null : "MongoDB ulanmagan — JSON fallback ishlatilmoqda (local dev).",
+    node: process.version,
+    runtime: 'local-express'
+  });
+});
+
 // ===== DASHBOARD STATS =====
 app.get('/api/stats', async (req, res) => {
   try {

@@ -7,7 +7,7 @@ import {
   ShieldCheck, Lock, LayoutDashboard, BookOpen,
   Plus, Edit, Trash2, Save, X, PlusCircle, HelpCircle,
   BookOpenCheck, BookMarked, Bot, KeyRound, Power,
-  Wallet, Users, TrendingUp, Calendar
+  Wallet, Users, TrendingUp, Calendar, Activity, CheckCircle2, AlertCircle
 } from 'lucide-react';
 import { useNavigate, useSearchParams } from 'react-router-dom';
 
@@ -139,6 +139,10 @@ const AdminPage: React.FC = () => {
   const [aiStats, setAiStats] = useState({ keysTotal: 0, keysActive: 0, usedToday: 0, dailyLimit: 0 });
   const [showAddKeyModal, setShowAddKeyModal] = useState(false);
   const [newAiKey, setNewAiKey] = useState({ name: '', apiKey: '', provider: 'gemini', dailyLimit: 1500 });
+
+  // Backend diagnostic modal — fires /api/health and shows what's broken.
+  const [backendHealth, setBackendHealth] = useState<aiStore.BackendHealth | null>(null);
+  const [checkingBackend, setCheckingBackend] = useState(false);
 
   // Subscriptions State
   const [subscriptions, setSubscriptions] = useState<Subscription[]>([]);
@@ -401,7 +405,11 @@ const AdminPage: React.FC = () => {
         fetchSubscriptions();
         showNotification("Yozuv o'chirildi (lokal)");
       } else {
-        showNotification("Backend ishlamayapti. Backend papkasida 'npm start' bilan ishga tushiring (port 5000).", 'error');
+        showNotification(
+        (err as Error)?.message ||
+        "Backend topilmadi. Local: backend/ papkada 'npm start'. Vercel: Project Root Directory = 'frontend' bo'lishi va MongoDB Atlas Network Access = '0.0.0.0/0' bo'lishi kerak.",
+        'error'
+      );
       }
     }
   };
@@ -426,6 +434,16 @@ const AdminPage: React.FC = () => {
       showNotification(`Kalit ishlayapti (${model}) — javob: "${(reply || '').slice(0, 80)}"`);
     } catch (err) {
       showNotification((err as Error).message || "Kalit ishlamadi", 'error');
+    }
+  };
+
+  const handleCheckBackend = async () => {
+    setCheckingBackend(true);
+    try {
+      const report = await aiStore.checkBackendHealth();
+      setBackendHealth(report);
+    } finally {
+      setCheckingBackend(false);
     }
   };
 
@@ -531,7 +549,11 @@ const AdminPage: React.FC = () => {
         showNotification(data.error || 'Amal bajarilmadi', 'error');
       }
     } catch (err) {
-      showNotification("Backend ishlamayapti. Backend papkasida 'npm start' bilan ishga tushiring (port 5000).", 'error');
+      showNotification(
+        (err as Error)?.message ||
+        "Backend topilmadi. Local: backend/ papkada 'npm start'. Vercel: Project Root Directory = 'frontend' bo'lishi va MongoDB Atlas Network Access = '0.0.0.0/0' bo'lishi kerak.",
+        'error'
+      );
     }
   };
 
@@ -552,7 +574,11 @@ const AdminPage: React.FC = () => {
         showNotification(data.error || 'O\'chirish amalga oshmadi', 'error');
       }
     } catch (err) {
-      showNotification("Backend ishlamayapti. Backend papkasida 'npm start' bilan ishga tushiring (port 5000).", 'error');
+      showNotification(
+        (err as Error)?.message ||
+        "Backend topilmadi. Local: backend/ papkada 'npm start'. Vercel: Project Root Directory = 'frontend' bo'lishi va MongoDB Atlas Network Access = '0.0.0.0/0' bo'lishi kerak.",
+        'error'
+      );
     }
   };
 
@@ -687,7 +713,11 @@ const AdminPage: React.FC = () => {
         showNotification(data.error || 'Amal bajarilmadi', 'error');
       }
     } catch (err) {
-      showNotification("Backend ishlamayapti. Backend papkasida 'npm start' bilan ishga tushiring (port 5000).", 'error');
+      showNotification(
+        (err as Error)?.message ||
+        "Backend topilmadi. Local: backend/ papkada 'npm start'. Vercel: Project Root Directory = 'frontend' bo'lishi va MongoDB Atlas Network Access = '0.0.0.0/0' bo'lishi kerak.",
+        'error'
+      );
     }
   };
 
@@ -708,7 +738,11 @@ const AdminPage: React.FC = () => {
         showNotification(data.error || 'O\'chirish amalga oshmadi', 'error');
       }
     } catch (err) {
-      showNotification("Backend ishlamayapti. Backend papkasida 'npm start' bilan ishga tushiring (port 5000).", 'error');
+      showNotification(
+        (err as Error)?.message ||
+        "Backend topilmadi. Local: backend/ papkada 'npm start'. Vercel: Project Root Directory = 'frontend' bo'lishi va MongoDB Atlas Network Access = '0.0.0.0/0' bo'lishi kerak.",
+        'error'
+      );
     }
   };
 
@@ -1436,6 +1470,21 @@ const AdminPage: React.FC = () => {
       {activeTab === 'ai' && (
         <div style={{ animation: 'fadeIn 0.3s', display: 'flex', flexDirection: 'column', gap: '24px' }}>
 
+          {/* Backend diagnostic banner */}
+          <div style={{ display: 'flex', justifyContent: 'space-between', alignItems: 'center', backgroundColor: '#f0f9ff', border: '1px solid #bae6fd', borderRadius: '12px', padding: '14px 18px' }}>
+            <div style={{ display: 'flex', alignItems: 'center', gap: '10px', color: '#0c4a6e', fontSize: '14px' }}>
+              <Activity size={18} />
+              <span>Agar "backend ulanmagan" yoki kalit saqlanmasa — backend ulanishini tekshiring.</span>
+            </div>
+            <button
+              onClick={handleCheckBackend}
+              disabled={checkingBackend}
+              style={{ padding: '8px 16px', backgroundColor: '#0284c7', color: '#fff', borderRadius: '8px', fontWeight: '600', fontSize: '13px', display: 'flex', alignItems: 'center', gap: '6px', opacity: checkingBackend ? 0.6 : 1 }}
+            >
+              <Activity size={14} /> {checkingBackend ? 'Tekshirilmoqda...' : 'Backendni tekshirish'}
+            </button>
+          </div>
+
           {/* AI Stats */}
           <div style={{ display: 'grid', gridTemplateColumns: 'repeat(auto-fit, minmax(220px, 1fr))', gap: '20px' }}>
             <div style={{ backgroundColor: '#fff', border: '1px solid var(--border-color)', borderRadius: '16px', padding: '24px', display: 'flex', alignItems: 'center', gap: '16px' }}>
@@ -1706,6 +1755,68 @@ const AdminPage: React.FC = () => {
                     style={{ flex: 1, padding: '12px', backgroundColor: 'var(--primary-base)', color: '#fff', borderRadius: '8px', fontWeight: '600', fontSize: '14px' }}
                   >
                     Saqlash
+                  </button>
+                </div>
+              </div>
+            </div>
+          )}
+
+          {/* Backend diagnostic result modal */}
+          {backendHealth && (
+            <div
+              onClick={() => setBackendHealth(null)}
+              style={{ position: 'fixed', inset: 0, backgroundColor: 'rgba(15, 23, 42, 0.5)', display: 'flex', alignItems: 'center', justifyContent: 'center', zIndex: 1000 }}
+            >
+              <div
+                onClick={e => e.stopPropagation()}
+                style={{ backgroundColor: '#fff', borderRadius: '20px', padding: '28px', width: '90%', maxWidth: '560px', boxShadow: '0 20px 50px rgba(0,0,0,0.2)' }}
+              >
+                <div style={{ display: 'flex', justifyContent: 'space-between', alignItems: 'center', marginBottom: '20px' }}>
+                  <h3 style={{ fontSize: '18px', fontWeight: '700', color: '#1e293b' }}>Backend diagnostika</h3>
+                  <button onClick={() => setBackendHealth(null)} style={{ color: '#64748b' }}><X size={20} /></button>
+                </div>
+
+                <div style={{ display: 'flex', flexDirection: 'column', gap: '12px' }}>
+                  {[
+                    { label: 'Serverless function topildi', ok: backendHealth.functionReachable },
+                    { label: 'MONGO_URI env var qo\'shilgan', ok: backendHealth.mongoUriPresent },
+                    { label: 'MongoDB Atlas ulanmoqda', ok: backendHealth.mongoConnected }
+                  ].map((row, i) => (
+                    <div key={i} style={{ display: 'flex', alignItems: 'center', gap: '10px', padding: '12px 14px', borderRadius: '10px', backgroundColor: row.ok ? '#ecfdf5' : '#fef2f2', border: `1px solid ${row.ok ? '#a7f3d0' : '#fecaca'}` }}>
+                      {row.ok ? <CheckCircle2 size={18} color="#10b981" /> : <AlertCircle size={18} color="#ef4444" />}
+                      <span style={{ fontSize: '14px', fontWeight: 600, color: row.ok ? '#065f46' : '#991b1b' }}>{row.label}</span>
+                    </div>
+                  ))}
+
+                  {backendHealth.mongoError && (
+                    <div style={{ padding: '12px 14px', borderRadius: '10px', backgroundColor: '#fffbeb', border: '1px solid #fde68a', fontSize: '13px', color: '#92400e' }}>
+                      <b>Xato:</b> {backendHealth.mongoError}
+                    </div>
+                  )}
+                  {backendHealth.hint && (
+                    <div style={{ padding: '12px 14px', borderRadius: '10px', backgroundColor: '#eff6ff', border: '1px solid #bae6fd', fontSize: '13px', color: '#0c4a6e' }}>
+                      💡 <b>Nima qilish kerak:</b> {backendHealth.hint}
+                    </div>
+                  )}
+                  {backendHealth.success && (
+                    <div style={{ padding: '12px 14px', borderRadius: '10px', backgroundColor: '#ecfdf5', border: '1px solid #a7f3d0', fontSize: '13px', color: '#065f46' }}>
+                      ✅ Hammasi joyida — AI kalit qo'shsangiz ham saqlanadi, foydalanuvchilar uchun ishlaydi.
+                    </div>
+                  )}
+
+                  {backendHealth.runtime && (
+                    <div style={{ fontSize: '12px', color: '#94a3b8', textAlign: 'right', fontFamily: 'monospace' }}>
+                      {backendHealth.runtime} • Node {backendHealth.node}
+                    </div>
+                  )}
+                </div>
+
+                <div style={{ marginTop: '20px' }}>
+                  <button
+                    onClick={() => setBackendHealth(null)}
+                    style={{ width: '100%', padding: '12px', backgroundColor: 'var(--primary-base)', color: '#fff', borderRadius: '8px', fontWeight: 600, fontSize: '14px' }}
+                  >
+                    Yopish
                   </button>
                 </div>
               </div>

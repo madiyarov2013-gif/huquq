@@ -155,8 +155,58 @@ export const refreshAll = async (): Promise<void> => {
 
 // --- async mutations (backend-first; cache refreshed on success) -----------
 
-const backendError = (d: { error?: string } | null) =>
-  new Error(d?.error || "Backend bilan bog'lanib bo'lmadi. Backend papkasida 'npm start' bilan ishga tushiring.");
+// Distinguishes the three failure modes so the UI can tell the admin what to
+// fix:
+//   1. fetch threw → serverless function not deployed (or CORS) — explain
+//      Vercel Root Directory must be `frontend` so /api/[...path].js is found.
+//   2. server responded with a JSON {success:false,error} → surface that
+//      message verbatim (e.g. "MONGO_URI env var is not set").
+//   3. server responded but body wasn't parseable → include status code.
+const backendError = (d: { error?: string } | null, status?: number): Error => {
+  if (d?.error) return new Error(d.error);
+  if (typeof status === 'number') {
+    return new Error(`Backend xato (${status}). Vercel logs'ni tekshiring.`);
+  }
+  return new Error(
+    "Backend topilmadi. Local dev: backend/ papkasida 'npm start'. " +
+    "Vercel: Project Settings → General → Root Directory = 'frontend' bo'lishi kerak."
+  );
+};
+
+// Diagnostic: hit /api/health and return the report (or throw on network).
+// Used by the admin "Backendni tekshirish" button.
+export interface BackendHealth {
+  success: boolean;
+  functionReachable: boolean;
+  mongoUriPresent: boolean;
+  mongoConnected: boolean;
+  mongoError: string | null;
+  hint?: string;
+  node?: string;
+  runtime?: string;
+}
+export const checkBackendHealth = async (): Promise<BackendHealth> => {
+  try {
+    const r = await fetch(apiUrl('/api/health'));
+    const d = await r.json().catch(() => null);
+    if (!d) {
+      return {
+        success: false, functionReachable: r.ok, mongoUriPresent: false,
+        mongoConnected: false, mongoError: `HTTP ${r.status} — javob JSON emas.`
+      };
+    }
+    return d as BackendHealth;
+  } catch (err) {
+    return {
+      success: false,
+      functionReachable: false,
+      mongoUriPresent: false,
+      mongoConnected: false,
+      mongoError: (err as Error).message || "Tarmoq xatosi",
+      hint: "Serverless function /api/health topilmadi. Vercel Project Settings → Root Directory = 'frontend' ekanini tekshiring."
+    };
+  }
+};
 
 export const saveAiSettings = async (s: AiSettings): Promise<AiSettings> => {
   const r = await fetch(apiUrl('/api/ai/settings'), {

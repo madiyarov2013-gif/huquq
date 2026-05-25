@@ -196,7 +196,47 @@ const app = express();
 app.use(cors());
 app.use(express.json({ limit: '2mb' }));
 
-// Ensure DB is up for every request
+// Status + health intentionally bypass the DB middleware so admins can
+// verify the serverless function itself is reachable even when MongoDB is
+// unreachable (missing MONGO_URI, Atlas IP whitelist, etc).
+app.get('/api/status', (_req, res) => res.json({ success: true, message: 'Huquq API (Vercel) is running' }));
+
+app.get('/api/health', async (_req, res) => {
+  const report = {
+    success: true,
+    functionReachable: true,
+    mongoUriPresent: Boolean(process.env.MONGO_URI),
+    mongoConnected: false,
+    mongoError: null,
+    node: process.version,
+    runtime: 'vercel-serverless'
+  };
+  if (!report.mongoUriPresent) {
+    report.success = false;
+    report.mongoError = "MONGO_URI env var Vercel Project Settings → Environment Variables ichida yo'q.";
+    return res.json(report);
+  }
+  try {
+    await connectDB();
+    report.mongoConnected = mongoose.connection.readyState === 1;
+    if (!report.mongoConnected) {
+      report.success = false;
+      report.mongoError = "Mongoose ulanish holati: " + mongoose.connection.readyState;
+    }
+  } catch (err) {
+    report.success = false;
+    report.mongoError = err.message || String(err);
+    // Provide a hint for the most common cause (Atlas IP whitelist)
+    if (/whitelist|IP|not allowed|ENOTFOUND|ETIMEDOUT|timed out/i.test(report.mongoError)) {
+      report.hint = "MongoDB Atlas → Network Access → Add IP Address → '0.0.0.0/0' (Allow access from anywhere) ni qo'shing. Vercel dinamik IP ishlatadi.";
+    } else if (/auth|password|credentials/i.test(report.mongoError)) {
+      report.hint = "MONGO_URI ichidagi username/password noto'g'ri. Atlas → Database Access dan tekshiring.";
+    }
+  }
+  res.json(report);
+});
+
+// Ensure DB is up for every other request
 app.use(async (req, res, next) => {
   try { await connectDB(); next(); }
   catch (err) {
@@ -204,9 +244,6 @@ app.use(async (req, res, next) => {
     res.status(500).json({ success: false, error: "Ma'lumotlar bazasiga ulanib bo'lmadi: " + err.message });
   }
 });
-
-// ---- Status ----
-app.get('/api/status', (_req, res) => res.json({ success: true, message: 'Huquq API (Vercel) is running' }));
 
 // ---- Stats (dashboard) ----
 app.get('/api/stats', async (_req, res) => {
