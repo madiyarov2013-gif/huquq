@@ -240,7 +240,9 @@ app.get('/api/health', async (_req, res) => {
 // Exception: /api/ai/chat can fall back to a GEMINI_API_KEY env var when the DB
 // is unreachable, so it manages its own (optional) DB connection internally.
 app.use(async (req, res, next) => {
-  if (req.path === '/api/ai/chat') return next();
+  // These manage their own optional DB connection and fall back to the
+  // GEMINI_API_KEY env var, so don't hard-fail them when MongoDB is absent.
+  if (req.path === '/api/ai/chat' || req.path === '/api/ai/stats') return next();
   try { await connectDB(); next(); }
   catch (err) {
     console.error('Mongo connect failed:', err.message);
@@ -438,18 +440,29 @@ app.delete('/api/ai/keys/:id', async (req, res) => {
 });
 
 // ---- AI: stats ----
+// DB-optional: works even without MONGO_URI so the chat status can show
+// "connected" when a GEMINI_API_KEY env var is configured. The env key is
+// counted as one active key so the user-facing status isn't a false
+// "no API key" when chat actually works via the env fallback.
 app.get('/api/ai/stats', async (_req, res) => {
+  const td = today();
+  let keysTotal = 0, keysActive = 0, usedToday = 0, dailyLimit = 0;
   try {
-    const td = today();
+    await connectDB();
     const keys = await AiKey.find({});
-    let totalUsed = 0, totalLimit = 0, activeCount = 0;
     for (const k of keys) {
-      totalUsed += k.usedDate === td ? k.used : 0;
-      totalLimit += k.dailyLimit;
-      if (k.active) activeCount += 1;
+      keysTotal += 1;
+      usedToday += k.usedDate === td ? k.used : 0;
+      dailyLimit += k.dailyLimit;
+      if (k.active) keysActive += 1;
     }
-    res.json({ success: true, data: { keysTotal: keys.length, keysActive: activeCount, usedToday: totalUsed, dailyLimit: totalLimit, date: td } });
-  } catch (e) { res.status(500).json({ success: false, error: e.message }); }
+  } catch (e) {
+    console.error('ai/stats: DB unavailable, reporting env key only:', e.message);
+  }
+  if ((process.env.GEMINI_API_KEY || '').trim()) {
+    keysTotal += 1; keysActive += 1; dailyLimit += 1500;
+  }
+  res.json({ success: true, data: { keysTotal, keysActive, usedToday, dailyLimit, date: td } });
 });
 
 // ---- AI: test saved key by id ----

@@ -143,6 +143,9 @@ const AdminPage: React.FC = () => {
   // Backend diagnostic modal — fires /api/health and shows what's broken.
   const [backendHealth, setBackendHealth] = useState<aiStore.BackendHealth | null>(null);
   const [checkingBackend, setCheckingBackend] = useState(false);
+  // Quiet, non-modal flag: true when the backend DB isn't connected, so we can
+  // show an explanatory banner instead of silent empty lists / zero stats.
+  const [dbWarning, setDbWarning] = useState(false);
 
   // Subscriptions State
   const [subscriptions, setSubscriptions] = useState<Subscription[]>([]);
@@ -177,6 +180,11 @@ const AdminPage: React.FC = () => {
       fetchAiStats();
       fetchSubscriptions();
       fetchSubStats();
+      // Quiet health probe so we can explain an empty admin panel (DB down)
+      // instead of silently showing zeros.
+      aiStore.checkBackendHealth()
+        .then(r => setDbWarning(!r.mongoConnected))
+        .catch(() => setDbWarning(true));
     }
   }, [isAuthenticated]);
 
@@ -929,6 +937,35 @@ const AdminPage: React.FC = () => {
           <Wallet size={18} /> To'lovlar
         </button>
       </div>
+
+      {/* Backend / DB status banner — explains an empty panel instead of
+          showing bare zeros when MongoDB isn't connected. */}
+      {dbWarning && (
+        <div style={{
+          display: 'flex', gap: '14px', alignItems: 'flex-start',
+          backgroundColor: '#fffbeb', border: '1px solid #fde68a', color: '#92400e',
+          borderRadius: '16px', padding: '18px 20px', marginBottom: '24px'
+        }}>
+          <AlertCircle size={22} style={{ flexShrink: 0, marginTop: '2px' }} />
+          <div style={{ fontSize: '14px', lineHeight: '1.6' }}>
+            <b>Backend bazaga ulanmagan (MongoDB sozlanmagan).</b> Shu sababli quyidagi
+            ro'yxatlar va statistika bo'sh ko'rinadi. Foydalanuvchilar hozircha
+            ichki (built-in) darslik va testlarni ko'rmoqda, AI suhbat esa ishlayapti.
+            Yangi darslik / test qo'shish va saqlash hamda barcha qurilmalarda
+            ko'rinishi uchun Vercel'da <b>MONGO_URI</b> ulang.
+            <button
+              onClick={handleCheckBackend}
+              style={{
+                display: 'inline-flex', alignItems: 'center', gap: '6px', marginTop: '10px',
+                padding: '6px 12px', backgroundColor: '#92400e', color: '#fff',
+                border: 'none', borderRadius: '8px', fontWeight: 600, cursor: 'pointer', fontSize: '13px'
+              }}
+            >
+              <Activity size={14} /> {checkingBackend ? 'Tekshirilmoqda...' : 'Backendni tekshirish'}
+            </button>
+          </div>
+        </div>
+      )}
 
       {/* ======================================================== */}
       {/* 1. DASHBOARD TAB */}
