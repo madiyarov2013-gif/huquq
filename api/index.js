@@ -236,8 +236,11 @@ app.get('/api/health', async (_req, res) => {
   res.json(report);
 });
 
-// Ensure DB is up for every other request
+// Ensure DB is up for every other request.
+// Exception: /api/ai/chat can fall back to a GEMINI_API_KEY env var when the DB
+// is unreachable, so it manages its own (optional) DB connection internally.
 app.use(async (req, res, next) => {
+  if (req.path === '/api/ai/chat') return next();
   try { await connectDB(); next(); }
   catch (err) {
     console.error('Mongo connect failed:', err.message);
@@ -527,28 +530,63 @@ app.post('/api/ai/test', async (req, res) => {
 });
 
 // ---- AI: chat (the actual user-facing endpoint) ----
+// Prefers DB-managed keys/settings, but falls back to a GEMINI_API_KEY env var
+// when the DB is unreachable or has no usable key — so chat still works with a
+// single Vercel env var even before MongoDB is configured.
 app.post('/api/ai/chat', async (req, res) => {
   const { message } = req.body || {};
   if (!message) return res.status(400).json({ success: false, error: 'Xabar kiritilmadi' });
-  const settings = await getAiSettings();
+
+  let settings = { ...DEFAULT_AI_SETTINGS };
+  let apiKey = null, provider = 'gemini', dbOk = false;
+  let keyId = null, keyUsed = 0, keyUsedDate = null;
+
+  try {
+    await connectDB();
+    dbOk = true;
+    settings = await getAiSettings();
+    const keyDoc = await pickNextActiveKey();
+    if (keyDoc) {
+      apiKey = keyDoc.apiKey;
+      provider = keyDoc.provider || settings.defaultProvider || 'gemini';
+      keyId = keyDoc._id; keyUsed = keyDoc.used; keyUsedDate = keyDoc.usedDate;
+    }
+  } catch (e) {
+    console.error('chat: DB unavailable, trying env key:', e.message);
+  }
+
   if (!settings.enabled) return res.status(503).json({ success: false, error: "AI hozircha o'chirilgan. Administrator yoqishini kuting." });
-  const keyDoc = await pickNextActiveKey();
-  if (!keyDoc) return res.status(503).json({ success: false, error: 'Faol API kalit topilmadi yoki kunlik limit tugagan.' });
-  const provider = keyDoc.provider || settings.defaultProvider || 'gemini';
+
+  // Fallback to env-var key when the DB has no usable key (or is down).
+  if (!apiKey) {
+    const envKey = (process.env.GEMINI_API_KEY || '').trim();
+    if (envKey) { apiKey = envKey; provider = 'gemini'; }
+  }
+  if (!apiKey) {
+    return res.status(503).json({
+      success: false,
+      error: dbOk
+        ? 'Faol API kalit topilmadi yoki kunlik limit tugagan.'
+        : "API kalit topilmadi. Vercelda GEMINI_API_KEY env o'zgaruvchisini qo'shing yoki MONGO_URI sozlab admin paneldan kalit qo'shing."
+    });
+  }
+
   try {
     let reply;
     if (provider === 'gemini') {
       const { reply: r, model: workingModel } = await tryGeminiGenerate(
-        keyDoc.apiKey,
+        apiKey,
         settings.defaultModel || 'gemini-1.5-flash',
         `${settings.systemPrompt}\n\nFoydalanuvchi: ${message}`
       );
       reply = r;
-      if (settings.defaultModel !== workingModel) await setAiSettings({ defaultModel: workingModel });
+      if (dbOk && settings.defaultModel !== workingModel) {
+        try { await setAiSettings({ defaultModel: workingModel }); } catch { /* ignore */ }
+      }
     } else if (provider === 'openai') {
       const response = await fetch('https://api.openai.com/v1/chat/completions', {
         method: 'POST',
-        headers: { 'Content-Type': 'application/json', 'Authorization': `Bearer ${keyDoc.apiKey}` },
+        headers: { 'Content-Type': 'application/json', 'Authorization': `Bearer ${apiKey}` },
         body: JSON.stringify({
           model: settings.defaultModel || 'gpt-3.5-turbo',
           messages: [{ role: 'system', content: settings.systemPrompt }, { role: 'user', content: message }],
@@ -561,9 +599,12 @@ app.post('/api/ai/chat', async (req, res) => {
     } else {
       return res.status(400).json({ success: false, error: `"${provider}" provider qo'llab-quvvatlanmaydi` });
     }
-    const td = today();
-    const newUsed = (keyDoc.usedDate === td ? keyDoc.used : 0) + 1;
-    await AiKey.findByIdAndUpdate(keyDoc._id, { used: newUsed, usedDate: td });
+    // Increment usage only for DB-managed keys.
+    if (dbOk && keyId) {
+      const td = today();
+      const newUsed = (keyUsedDate === td ? keyUsed : 0) + 1;
+      try { await AiKey.findByIdAndUpdate(keyId, { used: newUsed, usedDate: td }); } catch { /* ignore */ }
+    }
     res.json({ success: true, reply });
   } catch (err) {
     let userMessage = "AI bilan bog'lanishda xatolik yuz berdi";
