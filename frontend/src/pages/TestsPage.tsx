@@ -3,7 +3,7 @@ import { apiUrl } from '../config';
 import {
   ClipboardList,
   Check, ArrowRight, ArrowLeft, RefreshCw, AlertCircle, Timer, CheckCircle2,
-  Filter, Sparkles, GraduationCap, TrendingUp, X
+  Filter, Sparkles, GraduationCap, TrendingUp, ChevronDown
 } from 'lucide-react';
 
 const AVAILABLE_GRADES = [6, 7, 8, 9, 10, 11];
@@ -164,8 +164,8 @@ const TestsPage = () => {
   const [historyResults, setHistoryResults] = useState<QuizResult[]>([]);
   const [viewingResult, setViewingResult] = useState<QuizResult | null>(null);
 
-  // Full-screen topic picker window
-  const [topicModalOpen, setTopicModalOpen] = useState<boolean>(false);
+  // Which grade rows are expanded to reveal their topics (accordion)
+  const [expandedGrades, setExpandedGrades] = useState<number[]>([]);
 
   // Persist grade selection
   useEffect(() => {
@@ -246,8 +246,26 @@ const TestsPage = () => {
     );
   };
 
-  const selectAllTopics = () => setSelectedTopics([...availableTopics]);
-  const clearTopics = () => setSelectedTopics([]);
+  // Distinct topics that belong to a single grade
+  const topicsForGrade = (g: number): string[] => {
+    const set = new Set<string>();
+    allTests.forEach(t => { if (t.grade === g) set.add(topicOf(t)); });
+    return Array.from(set).sort((a, b) => a.localeCompare(b, 'uz'));
+  };
+
+  const toggleExpand = (g: number) => {
+    setExpandedGrades(prev => prev.includes(g) ? prev.filter(x => x !== g) : [...prev, g]);
+  };
+
+  // Per-grade "Hammasi" / "Tozalash"
+  const selectGradeTopics = (g: number) => {
+    const topics = topicsForGrade(g);
+    setSelectedTopics(prev => Array.from(new Set([...prev, ...topics])));
+  };
+  const clearGradeTopics = (g: number) => {
+    const topics = topicsForGrade(g);
+    setSelectedTopics(prev => prev.filter(t => !topics.includes(t)));
+  };
 
   // Load history from localStorage
   useEffect(() => {
@@ -1026,54 +1044,106 @@ const TestsPage = () => {
           })}
         </div>
 
-        {/* Mavzu (topic) tag — opens the full-screen topic picker */}
+        {/* Per-grade topic accordion — click a grade to reveal its mavzular */}
         {selectedGrades.length > 0 && availableTopics.length > 0 && (
           <div style={{ borderTop: '1px dashed #e2e8f0', paddingTop: '20px' }}>
-            <button
-              onClick={() => setTopicModalOpen(true)}
-              style={{
-                width: '100%', display: 'flex', alignItems: 'center', justifyContent: 'space-between', gap: '14px',
-                padding: '16px 20px', borderRadius: '16px', cursor: 'pointer',
-                border: '1.5px solid #e9d5ff',
-                background: 'linear-gradient(135deg, #faf5ff 0%, #fdf2f8 100%)',
-                textAlign: 'left', transition: 'all 0.2s'
-              }}
-            >
-              <div style={{ display: 'flex', alignItems: 'center', gap: '12px', minWidth: 0 }}>
-                <div style={{ width: '40px', height: '40px', borderRadius: '12px', flexShrink: 0, background: 'linear-gradient(135deg, #7c3aed 0%, #ec4899 100%)', color: '#fff', display: 'flex', alignItems: 'center', justifyContent: 'center' }}>
-                  <ClipboardList size={20} />
-                </div>
-                <div style={{ minWidth: 0 }}>
-                  <div style={{ fontSize: '15px', fontWeight: 800, color: '#0f172a' }}>Mavzularni tanlash</div>
-                  <div style={{ fontSize: '12.5px', color: '#7c3aed', fontWeight: 600 }}>
-                    {selectedTopics.length} / {availableTopics.length} mavzu tanlangan — ochish uchun bosing
-                  </div>
-                </div>
+            <div style={{ display: 'flex', alignItems: 'center', gap: '10px', marginBottom: '14px' }}>
+              <div style={{ width: '36px', height: '36px', borderRadius: '10px', backgroundColor: '#f5f3ff', color: '#7c3aed', display: 'flex', alignItems: 'center', justifyContent: 'center' }}>
+                <ClipboardList size={18} />
               </div>
-              <span style={{ flexShrink: 0, display: 'inline-flex', alignItems: 'center', gap: '6px', padding: '8px 16px', borderRadius: '999px', background: 'linear-gradient(135deg, #7c3aed 0%, #ec4899 100%)', color: '#fff', fontWeight: 700, fontSize: '13.5px', boxShadow: '0 6px 14px rgba(124, 58, 237, 0.25)' }}>
-                Ochish <ArrowRight size={16} />
-              </span>
-            </button>
+              <div>
+                <h3 style={{ margin: 0, fontSize: '16px', fontWeight: 700, color: '#0f172a' }}>Mavzularni tanlang</h3>
+                <p style={{ margin: 0, fontSize: '12.5px', color: '#94a3b8' }}>Sinf ustiga bosing — mavzulari ochiladi</p>
+              </div>
+            </div>
 
-            {/* Selected topics preview chips */}
-            {selectedTopics.length > 0 && (
-              <div style={{ display: 'flex', gap: '8px', flexWrap: 'wrap', marginTop: '14px' }}>
-                {selectedTopics.map(topic => (
-                  <span
-                    key={topic}
-                    style={{
-                      display: 'inline-flex', alignItems: 'center', gap: '6px',
-                      padding: '6px 14px', borderRadius: '999px',
-                      background: 'linear-gradient(135deg, #7c3aed 0%, #ec4899 100%)',
-                      color: '#fff', fontSize: '13px', fontWeight: 700,
-                      boxShadow: '0 4px 10px rgba(124, 58, 237, 0.2)'
-                    }}
-                  >
-                    <Check size={13} /> {topic}
-                  </span>
-                ))}
-              </div>
-            )}
+            <div style={{ display: 'flex', flexDirection: 'column', gap: '10px' }}>
+              {selectedGrades.map(g => {
+                const gradeTopics = topicsForGrade(g);
+                if (gradeTopics.length === 0) return null;
+                const expanded = expandedGrades.includes(g);
+                const selCount = gradeTopics.filter(t => selectedTopics.includes(t)).length;
+                return (
+                  <div key={g} style={{ border: '1.5px solid #e2e8f0', borderRadius: '14px', overflow: 'hidden', background: '#fff' }}>
+                    {/* Grade header row */}
+                    <button
+                      onClick={() => toggleExpand(g)}
+                      style={{
+                        width: '100%', display: 'flex', alignItems: 'center', justifyContent: 'space-between', gap: '12px',
+                        padding: '14px 18px', cursor: 'pointer', border: 'none',
+                        background: expanded ? 'linear-gradient(135deg, #faf5ff 0%, #fdf2f8 100%)' : '#fff',
+                        textAlign: 'left', transition: 'all 0.2s'
+                      }}
+                    >
+                      <span style={{ display: 'flex', alignItems: 'center', gap: '12px', minWidth: 0 }}>
+                        <span style={{
+                          display: 'inline-flex', alignItems: 'center', padding: '6px 14px', borderRadius: '999px',
+                          background: 'linear-gradient(135deg, #4f46e5 0%, #7c3aed 100%)', color: '#fff',
+                          fontWeight: 800, fontSize: '14px', flexShrink: 0
+                        }}>
+                          {g}-sinf
+                        </span>
+                        <span style={{ fontSize: '13px', fontWeight: 700, color: selCount > 0 ? '#7c3aed' : '#94a3b8' }}>
+                          {selCount} / {gradeTopics.length} mavzu
+                        </span>
+                      </span>
+                      <ChevronDown size={20} color="#7c3aed" style={{ flexShrink: 0, transform: expanded ? 'rotate(180deg)' : 'none', transition: 'transform 0.2s' }} />
+                    </button>
+
+                    {/* Expanded topics */}
+                    {expanded && (
+                      <div style={{ padding: '16px 18px', borderTop: '1px solid #f1f5f9', display: 'flex', flexDirection: 'column', gap: '14px' }}>
+                        <div style={{ display: 'flex', gap: '8px' }}>
+                          <button
+                            onClick={() => selectGradeTopics(g)}
+                            style={{ padding: '7px 14px', border: '1px solid #c4b5fd', backgroundColor: '#faf5ff', borderRadius: '10px', color: '#6d28d9', fontWeight: 700, fontSize: '13px', cursor: 'pointer' }}
+                          >
+                            Hammasi
+                          </button>
+                          <button
+                            onClick={() => clearGradeTopics(g)}
+                            disabled={selCount === 0}
+                            style={{ padding: '7px 14px', border: '1px solid #e2e8f0', backgroundColor: '#fff', borderRadius: '10px', color: selCount === 0 ? '#cbd5e1' : '#ef4444', fontWeight: 700, fontSize: '13px', cursor: selCount === 0 ? 'not-allowed' : 'pointer' }}
+                          >
+                            Tozalash
+                          </button>
+                        </div>
+                        <div style={{ display: 'flex', gap: '10px', flexWrap: 'wrap' }}>
+                          {gradeTopics.map(topic => {
+                            const selected = selectedTopics.includes(topic);
+                            const qCount = allTests
+                              .filter(t => t.grade === g && topicOf(t) === topic)
+                              .reduce((s, t) => s + t.questions.length, 0);
+                            return (
+                              <button
+                                key={topic}
+                                onClick={() => toggleTopic(topic)}
+                                style={{
+                                  display: 'flex', alignItems: 'center', gap: '8px',
+                                  padding: '10px 18px', borderRadius: '999px',
+                                  border: selected ? '2px solid #7c3aed' : '1.5px solid #e2e8f0',
+                                  background: selected ? 'linear-gradient(135deg, #7c3aed 0%, #ec4899 100%)' : '#fff',
+                                  color: selected ? '#fff' : '#475569',
+                                  fontWeight: 700, fontSize: '14px', cursor: 'pointer',
+                                  boxShadow: selected ? '0 6px 14px rgba(124, 58, 237, 0.25)' : 'none',
+                                  transition: 'all 0.2s'
+                                }}
+                              >
+                                {selected && <Check size={14} />}
+                                <span>{topic}</span>
+                                <span style={{ fontSize: '11.5px', opacity: selected ? 0.9 : 0.6, fontWeight: 600 }}>
+                                  ({qCount})
+                                </span>
+                              </button>
+                            );
+                          })}
+                        </div>
+                      </div>
+                    )}
+                  </div>
+                );
+              })}
+            </div>
           </div>
         )}
 
@@ -1230,104 +1300,6 @@ const TestsPage = () => {
           </div>
         );
       })()}
-
-      {/* FULL-SCREEN TOPIC PICKER WINDOW */}
-      {topicModalOpen && availableTopics.length > 0 && (
-        <div style={{
-          position: 'fixed', inset: 0, zIndex: 9999,
-          background: 'linear-gradient(135deg, #f8fafc 0%, #e2e8f0 100%)',
-          overflowY: 'auto', animation: 'fadeIn 0.25s ease-in-out'
-        }}>
-          <div style={{ width: '100%', maxWidth: '900px', margin: '0 auto', padding: '24px 20px', boxSizing: 'border-box' }}>
-
-            {/* Header */}
-            <div style={{ display: 'flex', justifyContent: 'space-between', alignItems: 'center', gap: '12px', marginBottom: '24px', backgroundColor: '#fff', padding: '20px 24px', borderRadius: '16px', border: '1px solid #e2e8f0', boxShadow: '0 4px 6px -1px rgba(0,0,0,0.02)' }}>
-              <div style={{ display: 'flex', alignItems: 'center', gap: '12px', minWidth: 0 }}>
-                <div style={{ width: '44px', height: '44px', borderRadius: '12px', flexShrink: 0, background: 'linear-gradient(135deg, #7c3aed 0%, #ec4899 100%)', color: '#fff', display: 'flex', alignItems: 'center', justifyContent: 'center' }}>
-                  <ClipboardList size={22} />
-                </div>
-                <div style={{ minWidth: 0 }}>
-                  <h3 style={{ margin: 0, fontSize: '19px', fontWeight: 800, color: '#0f172a' }}>Mavzularni tanlang</h3>
-                  <span style={{ fontSize: '13px', color: '#64748b', fontWeight: 600 }}>{selectedTopics.length} / {availableTopics.length} mavzu tanlangan</span>
-                </div>
-              </div>
-              <button
-                onClick={() => setTopicModalOpen(false)}
-                title="Yopish"
-                style={{ flexShrink: 0, width: '42px', height: '42px', borderRadius: '12px', border: '1px solid #e2e8f0', backgroundColor: '#fff', color: '#475569', cursor: 'pointer', display: 'flex', alignItems: 'center', justifyContent: 'center' }}
-              >
-                <X size={22} />
-              </button>
-            </div>
-
-            {/* Hammasi / Tozalash */}
-            <div style={{ display: 'flex', gap: '10px', marginBottom: '20px' }}>
-              <button
-                onClick={selectAllTopics}
-                style={{ flex: 1, padding: '14px', border: '1.5px solid #c4b5fd', backgroundColor: '#faf5ff', borderRadius: '14px', color: '#6d28d9', fontWeight: 700, fontSize: '15px', cursor: 'pointer', display: 'flex', alignItems: 'center', justifyContent: 'center', gap: '8px' }}
-              >
-                <Check size={18} /> Hammasi
-              </button>
-              <button
-                onClick={clearTopics}
-                disabled={selectedTopics.length === 0}
-                style={{ flex: 1, padding: '14px', border: '1.5px solid #e2e8f0', backgroundColor: '#fff', borderRadius: '14px', color: selectedTopics.length === 0 ? '#cbd5e1' : '#ef4444', fontWeight: 700, fontSize: '15px', cursor: selectedTopics.length === 0 ? 'not-allowed' : 'pointer' }}
-              >
-                Tozalash
-              </button>
-            </div>
-
-            {/* Topic list */}
-            <div style={{ display: 'flex', flexDirection: 'column', gap: '12px', marginBottom: '24px' }}>
-              {availableTopics.map(topic => {
-                const selected = selectedTopics.includes(topic);
-                const qCount = allTests
-                  .filter(t => selectedGrades.includes(t.grade) && topicOf(t) === topic)
-                  .reduce((s, t) => s + t.questions.length, 0);
-                return (
-                  <button
-                    key={topic}
-                    onClick={() => toggleTopic(topic)}
-                    style={{
-                      display: 'flex', alignItems: 'center', gap: '14px', width: '100%',
-                      padding: '18px 22px', textAlign: 'left', borderRadius: '16px',
-                      border: selected ? '2px solid #7c3aed' : '1.5px solid #e2e8f0',
-                      background: selected ? 'linear-gradient(135deg, #faf5ff 0%, #fdf2f8 100%)' : '#fff',
-                      cursor: 'pointer', transition: 'all 0.2s', boxSizing: 'border-box'
-                    }}
-                  >
-                    <div style={{
-                      width: '28px', height: '28px', borderRadius: '8px', flexShrink: 0,
-                      display: 'flex', alignItems: 'center', justifyContent: 'center',
-                      background: selected ? 'linear-gradient(135deg, #7c3aed 0%, #ec4899 100%)' : '#f1f5f9',
-                      color: selected ? '#fff' : 'transparent', border: selected ? 'none' : '1.5px solid #cbd5e1'
-                    }}>
-                      <Check size={16} />
-                    </div>
-                    <span style={{ flexGrow: 1, fontSize: '16px', fontWeight: 700, color: selected ? '#6d28d9' : '#334155' }}>{topic}</span>
-                    <span style={{ flexShrink: 0, fontSize: '13px', fontWeight: 700, color: selected ? '#7c3aed' : '#94a3b8' }}>{qCount} ta savol</span>
-                  </button>
-                );
-              })}
-            </div>
-
-            {/* Confirm */}
-            <button
-              onClick={() => setTopicModalOpen(false)}
-              style={{
-                width: '100%', padding: '18px',
-                background: 'linear-gradient(135deg, #7c3aed 0%, #ec4899 100%)',
-                color: '#fff', border: 'none', borderRadius: '14px',
-                fontWeight: 800, fontSize: '16px', cursor: 'pointer',
-                boxShadow: '0 10px 20px rgba(124, 58, 237, 0.3)',
-                display: 'flex', alignItems: 'center', justifyContent: 'center', gap: '10px'
-              }}
-            >
-              <Check size={18} /> Tasdiqlash ({selectedTopics.length} ta mavzu)
-            </button>
-          </div>
-        </div>
-      )}
 
       <style>{`
         @keyframes fadeIn {
