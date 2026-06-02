@@ -2,7 +2,6 @@ import { useState, useEffect } from 'react';
 import { Link, useLocation } from 'react-router-dom';
 import {
   Home,
-  GraduationCap,
   ClipboardList,
   User,
   Settings,
@@ -67,7 +66,6 @@ const Sidebar = ({ isOpen = false, onClose }: SidebarProps) => {
       ]
     : [
         { path: '/', icon: <Home size={20} />, label: 'Bosh sahifa' },
-        { path: '/classes', icon: <GraduationCap size={20} />, label: 'Sinflar' },
         { path: '/tests', icon: <ClipboardList size={20} />, label: 'Testlar', hasSubmenu: true },
         { path: '/payment', icon: <Crown size={20} />, label: isPaid ? 'Premium obuna' : "To'lov" },
         { path: '/profile', icon: <User size={20} />, label: 'Profil' },
