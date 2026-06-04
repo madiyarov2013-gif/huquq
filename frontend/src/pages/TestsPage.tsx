@@ -3,7 +3,7 @@ import { apiUrl } from '../config';
 import {
   ClipboardList,
   Check, ArrowRight, ArrowLeft, RefreshCw, AlertCircle, Timer, CheckCircle2,
-  Filter, Sparkles, GraduationCap, TrendingUp, ChevronDown
+  Filter, Sparkles, GraduationCap, TrendingUp, ChevronRight, X
 } from 'lucide-react';
 
 const AVAILABLE_GRADES = [6, 7, 8, 9, 10, 11];
@@ -389,8 +389,8 @@ const TestsPage = () => {
   const [historyResults, setHistoryResults] = useState<QuizResult[]>([]);
   const [viewingResult, setViewingResult] = useState<QuizResult | null>(null);
 
-  // Which grade rows are expanded to reveal their topics (accordion)
-  const [expandedGrades, setExpandedGrades] = useState<number[]>([]);
+  // Qaysi sinfning mavzular oynasi (modal) ochiq turibdi (null => yopiq)
+  const [topicModalGrade, setTopicModalGrade] = useState<number | null>(null);
 
   // Persist grade selection
   useEffect(() => {
@@ -476,10 +476,6 @@ const TestsPage = () => {
     const set = new Set<string>();
     allTests.forEach(t => { if (t.grade === g) set.add(topicOf(t)); });
     return Array.from(set).sort((a, b) => a.localeCompare(b, 'uz'));
-  };
-
-  const toggleExpand = (g: number) => {
-    setExpandedGrades(prev => prev.includes(g) ? prev.filter(x => x !== g) : [...prev, g]);
   };
 
   // Per-grade "Hammasi" / "Tozalash"
@@ -1278,94 +1274,41 @@ const TestsPage = () => {
               </div>
               <div>
                 <h3 style={{ margin: 0, fontSize: '16px', fontWeight: 700, color: '#0f172a' }}>Mavzularni tanlang</h3>
-                <p style={{ margin: 0, fontSize: '12.5px', color: '#94a3b8' }}>Sinf ustiga bosing — mavzulari ochiladi</p>
+                <p style={{ margin: 0, fontSize: '12.5px', color: '#94a3b8' }}>Sinf knopkasini bosing — mavzular oynasi ochiladi</p>
               </div>
             </div>
 
-            <div style={{ display: 'flex', flexDirection: 'column', gap: '10px' }}>
+            {/* Sinf knopkalari — bosilganda mavzular oynasi (modal) ochiladi */}
+            <div style={{ display: 'flex', gap: '10px', flexWrap: 'wrap' }}>
               {selectedGrades.map(g => {
                 const gradeTopics = topicsForGrade(g);
                 if (gradeTopics.length === 0) return null;
-                const expanded = expandedGrades.includes(g);
                 const selCount = gradeTopics.filter(t => selectedTopics.includes(t)).length;
                 return (
-                  <div key={g} style={{ border: '1.5px solid #e2e8f0', borderRadius: '14px', overflow: 'hidden', background: '#fff' }}>
-                    {/* Grade header row */}
-                    <button
-                      onClick={() => toggleExpand(g)}
-                      style={{
-                        width: '100%', display: 'flex', alignItems: 'center', justifyContent: 'space-between', gap: '12px',
-                        padding: '14px 18px', cursor: 'pointer', border: 'none',
-                        background: expanded ? 'linear-gradient(135deg, #faf5ff 0%, #fdf2f8 100%)' : '#fff',
-                        textAlign: 'left', transition: 'all 0.2s'
-                      }}
-                    >
-                      <span style={{ display: 'flex', alignItems: 'center', gap: '12px', minWidth: 0 }}>
-                        <span style={{
-                          display: 'inline-flex', alignItems: 'center', padding: '6px 14px', borderRadius: '999px',
-                          background: 'linear-gradient(135deg, #4f46e5 0%, #7c3aed 100%)', color: '#fff',
-                          fontWeight: 800, fontSize: '14px', flexShrink: 0
-                        }}>
-                          {g}-sinf
-                        </span>
-                        <span style={{ fontSize: '13px', fontWeight: 700, color: selCount > 0 ? '#7c3aed' : '#94a3b8' }}>
-                          {selCount} / {gradeTopics.length} mavzu
-                        </span>
-                      </span>
-                      <ChevronDown size={20} color="#7c3aed" style={{ flexShrink: 0, transform: expanded ? 'rotate(180deg)' : 'none', transition: 'transform 0.2s' }} />
-                    </button>
-
-                    {/* Expanded topics */}
-                    {expanded && (
-                      <div style={{ padding: '16px 18px', borderTop: '1px solid #f1f5f9', display: 'flex', flexDirection: 'column', gap: '14px' }}>
-                        <div style={{ display: 'flex', gap: '8px' }}>
-                          <button
-                            onClick={() => selectGradeTopics(g)}
-                            style={{ padding: '7px 14px', border: '1px solid #c4b5fd', backgroundColor: '#faf5ff', borderRadius: '10px', color: '#6d28d9', fontWeight: 700, fontSize: '13px', cursor: 'pointer' }}
-                          >
-                            Hammasi
-                          </button>
-                          <button
-                            onClick={() => clearGradeTopics(g)}
-                            disabled={selCount === 0}
-                            style={{ padding: '7px 14px', border: '1px solid #e2e8f0', backgroundColor: '#fff', borderRadius: '10px', color: selCount === 0 ? '#cbd5e1' : '#ef4444', fontWeight: 700, fontSize: '13px', cursor: selCount === 0 ? 'not-allowed' : 'pointer' }}
-                          >
-                            Tozalash
-                          </button>
-                        </div>
-                        <div style={{ display: 'flex', gap: '10px', flexWrap: 'wrap' }}>
-                          {gradeTopics.map(topic => {
-                            const selected = selectedTopics.includes(topic);
-                            const qCount = allTests
-                              .filter(t => t.grade === g && topicOf(t) === topic)
-                              .reduce((s, t) => s + t.questions.length, 0);
-                            return (
-                              <button
-                                key={topic}
-                                onClick={() => toggleTopic(topic)}
-                                style={{
-                                  display: 'flex', alignItems: 'center', gap: '8px',
-                                  padding: '10px 18px', borderRadius: '999px',
-                                  border: selected ? '2px solid #7c3aed' : '1.5px solid #e2e8f0',
-                                  background: selected ? 'linear-gradient(135deg, #7c3aed 0%, #ec4899 100%)' : '#fff',
-                                  color: selected ? '#fff' : '#475569',
-                                  fontWeight: 700, fontSize: '14px', cursor: 'pointer',
-                                  boxShadow: selected ? '0 6px 14px rgba(124, 58, 237, 0.25)' : 'none',
-                                  transition: 'all 0.2s'
-                                }}
-                              >
-                                {selected && <Check size={14} />}
-                                <span>{topic}</span>
-                                <span style={{ fontSize: '11.5px', opacity: selected ? 0.9 : 0.6, fontWeight: 600 }}>
-                                  ({qCount})
-                                </span>
-                              </button>
-                            );
-                          })}
-                        </div>
-                      </div>
-                    )}
-                  </div>
+                  <button
+                    key={g}
+                    onClick={() => setTopicModalGrade(g)}
+                    title={`${g}-sinf mavzularini tanlash`}
+                    style={{
+                      display: 'flex', alignItems: 'center', gap: '10px',
+                      padding: '10px 14px 10px 10px', borderRadius: '14px',
+                      border: selCount > 0 ? '1.5px solid #c4b5fd' : '1.5px solid #e2e8f0',
+                      background: selCount > 0 ? '#faf5ff' : '#fff',
+                      cursor: 'pointer', transition: 'all 0.2s'
+                    }}
+                  >
+                    <span style={{
+                      display: 'inline-flex', alignItems: 'center', padding: '6px 14px', borderRadius: '999px',
+                      background: 'linear-gradient(135deg, #4f46e5 0%, #7c3aed 100%)', color: '#fff',
+                      fontWeight: 800, fontSize: '14px', flexShrink: 0
+                    }}>
+                      {g}-sinf
+                    </span>
+                    <span style={{ fontSize: '13px', fontWeight: 700, color: selCount > 0 ? '#7c3aed' : '#94a3b8' }}>
+                      {selCount} / {gradeTopics.length} mavzu
+                    </span>
+                    <ChevronRight size={18} color="#7c3aed" style={{ flexShrink: 0 }} />
+                  </button>
                 );
               })}
             </div>
@@ -1373,6 +1316,121 @@ const TestsPage = () => {
         )}
 
       </div>
+
+      {/* ── MAVZULAR OYNASI (MODAL) — sinf knopkasi bosilganda ochiladi ── */}
+      {topicModalGrade !== null && (() => {
+        const g = topicModalGrade;
+        const gradeTopics = topicsForGrade(g);
+        const selCount = gradeTopics.filter(t => selectedTopics.includes(t)).length;
+        return (
+          <div
+            onClick={() => setTopicModalGrade(null)}
+            style={{
+              position: 'fixed', inset: 0, zIndex: 10000,
+              background: 'rgba(15, 23, 42, 0.55)', backdropFilter: 'blur(3px)',
+              display: 'flex', alignItems: 'center', justifyContent: 'center',
+              padding: '20px', animation: 'fadeIn 0.2s ease-in-out'
+            }}
+          >
+            <div
+              onClick={e => e.stopPropagation()}
+              style={{
+                width: '100%', maxWidth: '560px', maxHeight: '85vh', overflowY: 'auto',
+                background: '#fff', borderRadius: '24px', padding: '24px',
+                boxShadow: '0 25px 50px -12px rgba(0,0,0,0.35)', boxSizing: 'border-box'
+              }}
+            >
+              {/* Oyna sarlavhasi */}
+              <div style={{ display: 'flex', alignItems: 'center', justifyContent: 'space-between', gap: '12px', marginBottom: '18px' }}>
+                <div style={{ display: 'flex', alignItems: 'center', gap: '12px', minWidth: 0 }}>
+                  <span style={{
+                    display: 'inline-flex', alignItems: 'center', padding: '8px 16px', borderRadius: '999px',
+                    background: 'linear-gradient(135deg, #4f46e5 0%, #7c3aed 100%)', color: '#fff',
+                    fontWeight: 800, fontSize: '15px', flexShrink: 0
+                  }}>
+                    {g}-sinf
+                  </span>
+                  <h3 style={{ margin: 0, fontSize: '17px', fontWeight: 800, color: '#0f172a' }}>Mavzular</h3>
+                </div>
+                <button
+                  onClick={() => setTopicModalGrade(null)}
+                  title="Yopish"
+                  style={{
+                    display: 'flex', alignItems: 'center', justifyContent: 'center',
+                    width: '38px', height: '38px', borderRadius: '12px',
+                    border: '1px solid #e2e8f0', background: '#f8fafc', color: '#475569',
+                    cursor: 'pointer', flexShrink: 0
+                  }}
+                >
+                  <X size={20} />
+                </button>
+              </div>
+
+              {/* Hammasi / Tozalash */}
+              <div style={{ display: 'flex', gap: '8px', marginBottom: '16px' }}>
+                <button
+                  onClick={() => selectGradeTopics(g)}
+                  style={{ padding: '8px 16px', border: '1px solid #c4b5fd', backgroundColor: '#faf5ff', borderRadius: '10px', color: '#6d28d9', fontWeight: 700, fontSize: '13px', cursor: 'pointer' }}
+                >
+                  Hammasi
+                </button>
+                <button
+                  onClick={() => clearGradeTopics(g)}
+                  disabled={selCount === 0}
+                  style={{ padding: '8px 16px', border: '1px solid #e2e8f0', backgroundColor: '#fff', borderRadius: '10px', color: selCount === 0 ? '#cbd5e1' : '#ef4444', fontWeight: 700, fontSize: '13px', cursor: selCount === 0 ? 'not-allowed' : 'pointer' }}
+                >
+                  Tozalash
+                </button>
+              </div>
+
+              {/* Mavzu chiplari */}
+              <div style={{ display: 'flex', gap: '10px', flexWrap: 'wrap' }}>
+                {gradeTopics.map(topic => {
+                  const selected = selectedTopics.includes(topic);
+                  const qCount = allTests
+                    .filter(t => t.grade === g && topicOf(t) === topic)
+                    .reduce((s, t) => s + t.questions.length, 0);
+                  return (
+                    <button
+                      key={topic}
+                      onClick={() => toggleTopic(topic)}
+                      style={{
+                        display: 'flex', alignItems: 'center', gap: '8px',
+                        padding: '10px 18px', borderRadius: '999px',
+                        border: selected ? '2px solid #7c3aed' : '1.5px solid #e2e8f0',
+                        background: selected ? 'linear-gradient(135deg, #7c3aed 0%, #ec4899 100%)' : '#fff',
+                        color: selected ? '#fff' : '#475569',
+                        fontWeight: 700, fontSize: '14px', cursor: 'pointer',
+                        boxShadow: selected ? '0 6px 14px rgba(124, 58, 237, 0.25)' : 'none',
+                        transition: 'all 0.2s'
+                      }}
+                    >
+                      {selected && <Check size={14} />}
+                      <span>{topic}</span>
+                      <span style={{ fontSize: '11.5px', opacity: selected ? 0.9 : 0.6, fontWeight: 600 }}>
+                        ({qCount})
+                      </span>
+                    </button>
+                  );
+                })}
+              </div>
+
+              {/* Tayyor knopkasi */}
+              <button
+                onClick={() => setTopicModalGrade(null)}
+                style={{
+                  marginTop: '24px', width: '100%', padding: '14px',
+                  background: 'linear-gradient(135deg, #4f46e5 0%, #7c3aed 100%)', color: '#fff',
+                  border: 'none', borderRadius: '14px', fontWeight: 700, fontSize: '15px', cursor: 'pointer',
+                  boxShadow: '0 8px 20px rgba(79, 70, 229, 0.25)'
+                }}
+              >
+                Tayyor ({selCount} ta mavzu tanlandi)
+              </button>
+            </div>
+          </div>
+        );
+      })()}
 
       {/* Section title */}
       <div style={{ display: 'flex', justifyContent: 'space-between', alignItems: 'center', marginBottom: '20px' }}>
