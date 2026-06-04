@@ -96,7 +96,104 @@ const msUntilNextLocalMidnight = (): number => {
 //   ],
 // ──────────────────────────────────────────────────────────────────────────
 const STATIC_FALLBACK_TESTS: Record<string, Test[]> = {
-  // Hozircha bo'sh — testlar tez orada qo'shiladi.
+  '6': [
+    {
+      title: "Tarbiya — Yakuniy test",
+      grade: 6,
+      questions: [
+        {
+          questionText: "O'qituvchi doskaga \"1\" va uning yoniga nollarni yozgan hikoyada \"1\" raqami insonning qaysi xususiyatini bildiradi?",
+          options: ["Jamiyatdagi obro'sini", "Olingan bilimlarini", "Hayotdagi yutuqlarini", "Odamiyligini"],
+          correctAnswer: 3,
+          explanation: "\"1\" — insonning odamiyligi. Yonidagi nollar (bilim, obro', yutuqlar) faqat shu \"1\" bilan birga qiymat kasb etadi; odamiylik bo'lmasa, ularning qiymati nolga teng."
+        },
+        {
+          questionText: "Bobo va nabira o'rtasidagi hikoyada inson qalbida qanday hayvonlarning olishuviga o'xshash kurash boradi, deb ta'riflanadi?",
+          options: ["Ikki sherning", "Ikki bo'rining", "Ikki burgutning", "Ikki ayiqning"],
+          correctAnswer: 1,
+          explanation: "Inson qalbida ikki bo'ri — yaxshilik va yomonlik — kurashadi. G'olib chiqadigani esa inson qaysi birini \"oziqlantirsa\", o'sha bo'ladi."
+        },
+        {
+          questionText: "\"O'zingga qanday munosabatda bo'lishlarini xohlasang, o'zgalar bilan ham shunday munosabatda bo'l\". Darslikda bu qoida nima deb atalgan?",
+          options: ["Ma'naviyatning \"oltin qoidasi\"", "Tabiatning yozilmagan qonuni", "Do'stlikning asosiy qoidasi", "Boylikning siri"],
+          correctAnswer: 0,
+          explanation: "Bu qoida ma'naviyatning \"oltin qoidasi\" deb ataladi."
+        },
+        {
+          questionText: "\"Agar daraxt senga o‘z soyasi, mevalari va gullarini taqdim etsa, nahotki, minnatdorchilik evaziga uni yerdan yulqib olib, o‘zing bilan olib ketishni xohlasang?\" Ushbu fikr qaysi donishmandga tegishli?",
+          options: ["Alisher Navoiy", "Uilyam Shekspir", "Vasishtxa", "Abu Rayhon Beruniy"],
+          correctAnswer: 2,
+          explanation: "Ushbu fikr donishmand Vasishtxaga tegishli."
+        },
+        {
+          questionText: "\"Sabr aylagan kishi yetar oxir murodiga, Shoshqaloq yetolmas ishning adog‘iga\". Ushbu misralar muallifi kim?",
+          options: ["Alisher Navoiy", "Sa'diy Sheroziy", "Erkin Vohidov", "Abdulla Oripov"],
+          correctAnswer: 1,
+          explanation: "Ushbu misralar muallifi Sa'diy Sheroziy."
+        },
+        {
+          questionText: "Hayotdagi vaqtni to'g'ri taqsimlash haqidagi hikoyada donishmand ko'zaga birinchi bo'lib nimani soldi?",
+          options: ["Qum", "No'xat", "Suv", "Tosh"],
+          correctAnswer: 3,
+          explanation: "Donishmand ko'zaga avval katta toshlarni soldi — eng muhim narsalarga birinchi o'rin berish lozimligini ko'rsatish uchun."
+        },
+        {
+          questionText: "Donishmand hikoyasidagi ko'zaga solingan toshlar hayotimizdagi qanday narsalarning timsoli hisoblanadi?",
+          options: ["Hayotdagi mayda-chuyda ishlarning", "Vaqtni bekorchi narsalarga sarflashning", "Uy, mashina kabi qimmatbaho narsalarning", "Eng aziz bo'lgan kishilarimiz, oilamiz va sog'lig'imizning"],
+          correctAnswer: 3,
+          explanation: "Katta toshlar — eng aziz kishilarimiz, oilamiz va sog'lig'imiz timsoli. Ularni hayotda birinchi o'ringa qo'yish kerak."
+        },
+        {
+          questionText: "Darslikda halollik belgisiga qanday ta'rif berilgan?",
+          options: ["Xatolarni yashirish", "Rostgo'ylik", "Hamma bilan tortishish", "Sukut saqlash"],
+          correctAnswer: 1,
+          explanation: "Halollikning belgisi — rostgo'ylik."
+        },
+        {
+          questionText: "Ko'lga boltasini tushirib yuborgan bola, suv tubidan oltin bolta olib chiqqan cholga qanday javob berdi?",
+          options: ["\"Ha, bu mening boltam\"", "\"Yo'q, bobo, bu mening boltam emas!\"", "\"Menga kumush boltani ham bering\"", "Indamasdan boltani olib ketdi"],
+          correctAnswer: 1,
+          explanation: "Bola halollik ko'rsatib, \"Yo'q, bobo, bu mening boltam emas!\" deb javob berdi."
+        },
+        {
+          questionText: "Darslikda oilaga qanday ta'rif beriladi?",
+          options: ["Faqat bitta uyda yashovchi insonlar", "Qiziqishlari, his-tuyg‘ulari, maqsadlari va hayotga bo‘lgan munosabati bir-biriga yaqin bo‘lgan odamlar", "Faqat ota va onadan iborat guruh", "Bir xil kasbda ishlaydigan shaxslar"],
+          correctAnswer: 1,
+          explanation: "Oila — qiziqishlari, his-tuyg'ulari, maqsadlari va hayotga bo'lgan munosabati bir-biriga yaqin bo'lgan odamlar."
+        },
+        {
+          questionText: "Oila a'zolari ta'riflangan qismda kimga \"Opa va akasiga xolis yordamchi, sirlarining ishonchli qo‘riqchisi\" deb ta'rif berilgan?",
+          options: ["Uka", "Ota", "Singil", "Ona"],
+          correctAnswer: 2,
+          explanation: "Bu ta'rif singilga tegishli — opa va akasiga xolis yordamchi, sirlarining ishonchli qo'riqchisi."
+        },
+        {
+          questionText: "\"Birodari va singlisining ishongan tog‘i, ibrat va jasurlik namunasi, ularning sirdoshi.\" Bu ta'rif qaysi oila a'zosiga tegishli?",
+          options: ["Bobo", "Aka", "Uka", "Tog'a"],
+          correctAnswer: 1,
+          explanation: "Bu ta'rif akaga tegishli — singil va ukasining ishongan tog'i, jasurlik namunasi."
+        },
+        {
+          questionText: "Inson kamoloti va bilimining manbayi, uni komillik sari yetaklovchi vosita nima ekanligi aytilgan?",
+          options: ["Faqat internet", "Sayohat qilish", "Kitob mutolaasi", "Boylik"],
+          correctAnswer: 2,
+          explanation: "Inson kamoloti va bilimining manbayi — kitob mutolaasi."
+        },
+        {
+          questionText: "Inson organizmi uchun zararli bo‘lgan nikotin moddasiga tobe bo‘lib qolish nimaning oqibati hisoblanadi?",
+          options: ["Shirinliklarni ko'p yeyish", "Tamaki chekish", "Muzdek ichimlik ichish", "Televizor ko'p ko'rish"],
+          correctAnswer: 1,
+          explanation: "Nikotinga tobe bo'lib qolish tamaki chekishning oqibatidir."
+        },
+        {
+          questionText: "Bolaligimizdan hammamiz biladigan \"Kechirasiz\", \"Kechiring\", \"Mendan ayb o‘tdi\" kabi so'zlarni aytish qanday fazilatni namoyon etadi?",
+          options: ["Kechirimlilik va xatoni tan olish", "Adolatsizlik", "Qat'iyatsizlik", "Sabrsizlik"],
+          correctAnswer: 0,
+          explanation: "Bu so'zlarni aytish kechirimlilik va o'z xatosini tan olish fazilatini namoyon etadi."
+        }
+      ]
+    }
+  ],
 };
 
 // A test's title doubles as its "mavzu" (topic). Normalise it for grouping/selection.
