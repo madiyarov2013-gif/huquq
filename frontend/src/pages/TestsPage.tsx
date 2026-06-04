@@ -194,6 +194,134 @@ const STATIC_FALLBACK_TESTS: Record<string, Test[]> = {
       ]
     }
   ],
+  '7': [
+    {
+      title: "Tarbiya — Yakuniy test",
+      grade: 7,
+      questions: [
+        {
+          questionText: "Donishmandlar fikricha, tarbiyaning boshi – odob, yo'li – insoniylik bo'lsa, uning manzili nima sanaladi?",
+          options: ["Muvaffaqiyat va boylik", "Baxt-saodat vodiysi", "Oila va jamiyat", "Ilm va hunar"],
+          correctAnswer: 1,
+          explanation: "Tarbiyaning boshi — odob, yo'li — insoniylik, manzili esa baxt-saodat vodiysi sanaladi."
+        },
+        {
+          questionText: "\"Kishi yurtida sulton bo‘lguncha, o‘z yurtingda cho‘pon bo‘l\" – degan purma'no o'git qaysi allomaga tegishli?",
+          options: ["Alisher Navoiy", "Amir Temur", "Abdulla Avloniy", "Jaloliddin Rumiy"],
+          correctAnswer: 0,
+          explanation: "Bu purma'no o'git Alisher Navoiyga tegishli."
+        },
+        {
+          questionText: "\"Yaxshi odam yurt tuzar, yomon odam yurt buzar\" degan fikrni kim aytgan?",
+          options: ["Zahiriddin Muhammad Bobur", "Amir Temur", "Abdulla Avloniy", "Mirzo Ulug'bek"],
+          correctAnswer: 1,
+          explanation: "Bu fikr Amir Temurga tegishli."
+        },
+        {
+          questionText: "Darslikda insonning muvaffaqiyatga erishishiga salbiy ta'sir ko'rsatuvchi illatlar sifatida qaysilar sanab o'tilgan?",
+          options: ["Atrofdagilarning befarqligi, do'stlarning yo'qligi", "Pulning yo'qligi, martabaning pastligi", "Qat'iyatsizlik, yolg'onchilik, o'g'rilik", "Dangasalik, yalqovlik, sabrsizlik, bilimsizlik, isrofgarchilik"],
+          correctAnswer: 3,
+          explanation: "Muvaffaqiyatga salbiy ta'sir ko'rsatuvchi illatlar: dangasalik, yalqovlik, sabrsizlik, bilimsizlik va isrofgarchilik."
+        },
+        {
+          questionText: "\"Modomiki to‘xtamas ekansan, sekin yoki tez yurayotganing – ahamiyatsiz. Muhimi – to‘xtab qolmaslik.\" Ushbu muvaffaqiyat qoidasi kimniki?",
+          options: ["Jaloliddin Rumiy", "Konfutsiy", "Mahmud Zamaxshariy", "Vasishtxa"],
+          correctAnswer: 1,
+          explanation: "Ushbu muvaffaqiyat qoidasi Konfutsiyga tegishli."
+        },
+        {
+          questionText: "Mustahkam iroda, sabot, chidam va bardoshli bo‘lish xislatlari birlashib, qaysi atamani bildiradi?",
+          options: ["Qat'iyat", "Qanoat", "Matonat", "Halollik"],
+          correctAnswer: 2,
+          explanation: "Mustahkam iroda, sabot, chidam va bardosh — matonat atamasini bildiradi."
+        },
+        {
+          questionText: "\"Mo‘jiza emasdir falakda oftob, Mo‘jiza aslida beminnat kitob\". Kitob haqidagi bu ajoyib misralar muallifi kim?",
+          options: ["Alisher Navoiy", "Abdulla Oripov", "Sa'diy Sheroziy", "Jaloliddin Rumiy"],
+          correctAnswer: 1,
+          explanation: "Bu misralar muallifi Abdulla Oripov."
+        },
+        {
+          questionText: "Bolaligida velosipedda do‘konlarga guruch tarqatib yurgan, do'stlari uning ustidan kulganda ham \"Men Koreyada avtomobil ishlab chiqaraman\" deb o'z maqsadiga erishgan qahramon qanday ta'riflangan?",
+          options: ["Xayolparast o'smir", "Po'lat iroda sohibi", "Omadli tadbirkor", "Boylikka o'ch bola"],
+          correctAnswer: 1,
+          explanation: "Maqsadi sari intilgan bu qahramon po'lat iroda sohibi sifatida ta'riflangan."
+        },
+        {
+          questionText: "Tomonlar o‘rtasida kelishmovchiliklar paydo bo‘lishining oldini olish va mojaroga aylanishiga yo‘l qo‘ymaslikka qaratilgan diplomatik harakatlar qanday ataladi?",
+          options: ["Tinchlik shartnomasi", "Murosa diplomatiyasi", "Preventiv diplomatiya", "Ochiq muloqot"],
+          correctAnswer: 2,
+          explanation: "Kelishmovchilik va mojaroning oldini olishga qaratilgan harakatlar — preventiv diplomatiya deb ataladi."
+        },
+        {
+          questionText: "Bir donishmanddan \"Qaysi fazilatlar eng yaxshi fazilatlar sanaladi?\" deb so'rashganda, u qanday javob bergan?",
+          options: ["Tabassum qilmoqlik, shirin so‘zlamoqlik, xushmuomala bo‘lmoqlik", "Jasorat, mardlik, mehnatsevarlik", "Ilm olish, hunar o'rganish, boylik yig'ish", "Sukut saqlash, ehtiyotkorlik, uzoqni ko'rish"],
+          correctAnswer: 0,
+          explanation: "Donishmand eng yaxshi fazilatlar — tabassum qilmoqlik, shirin so'zlamoqlik va xushmuomala bo'lmoqlik deb javob bergan."
+        },
+        {
+          questionText: "Odamning jamoat, el-yurt orasida o‘zini tutishi, boshqalar bilan qay yo‘sinda muomala qilishi, shaxsning kundalik xulq-atvori nima deb ataladi?",
+          options: ["Muloqot", "Matonat", "Xulq", "Odob"],
+          correctAnswer: 2,
+          explanation: "Shaxsning kundalik xulq-atvori, o'zini tutishi — xulq deb ataladi."
+        },
+        {
+          questionText: "\"Kishi uchun eng foydali va dilni yorishtiruvchi narsa\" – bu nima?",
+          options: ["Boylik", "Qanoat", "Do'stlik", "Muvaffaqiyat"],
+          correctAnswer: 2,
+          explanation: "Kishi uchun eng foydali va dilni yorishtiruvchi narsa — do'stlik."
+        },
+        {
+          questionText: "\"Tejamkorlik – ......\" Darslikka ko'ra ushbu fikrni mantiqan to'g'ri yakunlang.",
+          options: ["sog'lik poydevori.", "boylik kaliti.", "omad belgisi.", "baxtning eshigi."],
+          correctAnswer: 1,
+          explanation: "Darslikka ko'ra: \"Tejamkorlik — boylik kaliti.\""
+        },
+        {
+          questionText: "\"To‘rt narsa kishini kibr-havolantirar ekan\". Hikoyadagi ota ushbu to'rt narsaga nimalarni kiritgan?",
+          options: ["Boylik, ilm, martaba va husn", "Yoshlik, sog'lik, go'zallik va pul", "Uy-joy, mashina, qimmat kiyim va obro'", "Mansab, do'stlar, ota-ona va farzandlar"],
+          correctAnswer: 0,
+          explanation: "Kishini kibr-havolantiruvchi to'rt narsa: boylik, ilm, martaba va husn."
+        },
+        {
+          questionText: "Donishmand uqtirishicha, odamning \"mukammal odam\" bo'lishi nimaga bog'liq?",
+          options: ["Odamdagi boylikning ko'pligiga", "Odamdagi martabaning balandligiga", "Odamning jismoniy sog'lig'iga", "Odamdagi imonning mustahkamligiga"],
+          correctAnswer: 3,
+          explanation: "Odamning \"mukammal odam\" bo'lishi undagi imonning mustahkamligiga bog'liq."
+        },
+        {
+          questionText: "O'zbek xalq maqolini toping: \"Pichoqdan emas, balki ........... qo‘rqing\".",
+          options: ["olovdan", "dushmandan", "tildan", "yolg'ondan"],
+          correctAnswer: 2,
+          explanation: "Maqol: \"Pichoqdan emas, balki tildan qo'rqing\" — yomon so'z pichoqdan ham o'tkir ekanini bildiradi."
+        },
+        {
+          questionText: "Oila, jamoa, mahalla-ko‘y miqyosida ahamiyatli bo‘lgan, ammo jamiyat va insoniyat hayotiga sezilarli ta’sir ko‘rsatmaydigan yoqimli insoniy xatti-harakatlarning majmui qanday ataladi?",
+          options: ["Xulq", "Odob", "Fe'l-atvor", "An'ana"],
+          correctAnswer: 1,
+          explanation: "Oila va mahalla miqyosidagi yoqimli insoniy xatti-harakatlar majmui — odob deb ataladi."
+        },
+        {
+          questionText: "Uzoq Xitoyda yuzdan ortiq a’zosi bo'lgan baxtli oilaning asosiy siri yozilgan qog'ozda qaysi uchta so'z yuz marotabadan yozilgan edi?",
+          options: ["Tinchlik, xotirjamlik, boylik", "Sabrlilik, kechirimlilik, muhabbat", "Mehnat, qanoat, ishonch", "Sog'lik, oqibat, adolat"],
+          correctAnswer: 1,
+          explanation: "Baxtli oilaning siri — sabrlilik, kechirimlilik va muhabbat so'zlari yuz martadan yozilgan edi."
+        },
+        {
+          questionText: "\"Odamlar bilan olovga muomala qilgandek munosabatda bo‘l, foydalaridan olgin-u, kuydirishlaridan ehtiyot bo‘l!\" Ushbu hikmatli so'z muallifi kim?",
+          options: ["Amir Temur", "Mahmud Zamaxshariy", "Abdulla Avloniy", "Alisher Navoiy"],
+          correctAnswer: 1,
+          explanation: "Ushbu hikmatli so'z muallifi Mahmud Zamaxshariy."
+        },
+        {
+          questionText: "\"Hushyor va zakovatli odam uldurki, uning fikr doirasi keng, uzoqni yaqindek ko‘ra oladigan, g‘aflat uyqusidan yiroq...\" deb boshlanuvchi ibratli so'zlar qaysi allomaga tegishli?",
+          options: ["Mahmud Zamaxshariy", "Jaloliddin Rumiy", "Alisher Navoiy", "Konfutsiy"],
+          correctAnswer: 0,
+          explanation: "Ushbu ibratli so'zlar Mahmud Zamaxshariyga tegishli."
+        }
+      ]
+    }
+  ],
 };
 
 // A test's title doubles as its "mavzu" (topic). Normalise it for grouping/selection.
