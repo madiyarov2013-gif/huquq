@@ -7,6 +7,16 @@ const crypto = require('crypto');
 const { GoogleGenerativeAI } = require('@google/generative-ai');
 require('dotenv').config();
 
+// Ba'zi lokal tarmoq/ISP DNS'lari MongoDB Atlas'ning SRV yozuvini hal qila
+// olmaydi (xato: querySrv ECONNREFUSED). mongodb+srv:// manzili hamma joyda
+// ishlashi uchun ommaviy DNS (Google/Cloudflare) ni resolver qilib qo'yamiz.
+const dns = require('dns');
+try {
+  dns.setServers(['8.8.8.8', '1.1.1.1', ...dns.getServers()]);
+} catch (e) {
+  console.warn("DNS serverlarini o'rnatib bo'lmadi:", e.message);
+}
+
 const app = express();
 const PORT = process.env.PORT || 5000;
 
